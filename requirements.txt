@@ -1,0 +1,5 @@
+python-telegram-bot>=20.0
+python-dotenv
+python-docx
+deep-translator
+psycopg2-binary
