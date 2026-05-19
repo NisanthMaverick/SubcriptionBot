@@ -1,5 +1,8 @@
 import logging
 import sys
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
@@ -24,6 +27,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"Bot is running!")
+        
+def start_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), DummyHandler)
+    logger.info(f"Starting dummy HTTP server on port {port} for cloud platform health checks...")
+    server.serve_forever()
+
 def main() -> None:
     if not BOT_TOKEN or BOT_TOKEN == "your_bot_token_here":
         logger.error("BOT_TOKEN is missing or not configured in .env file!")
@@ -31,6 +47,10 @@ def main() -> None:
         sys.exit(1)
 
     logger.info("Initializing Telegram Subscription Bot...")
+
+    # Start dummy web server for cloud deployment health checks (e.g., Render)
+    server_thread = threading.Thread(target=start_dummy_server, daemon=True)
+    server_thread.start()
 
     # Build application
     application = Application.builder().token(BOT_TOKEN).build()
