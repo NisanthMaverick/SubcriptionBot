@@ -114,44 +114,42 @@ async def receive_channel_input(update: Update, context: ContextTypes.DEFAULT_TY
 async def start_map_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    channels = db.get_all_premium_channels()
-    if not channels:
-        await edit_message_safely(query, "⚠️ No channels available.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
+    plans = db.get_all_plans()
+    if not plans:
+        await edit_message_safely(query, "⚠️ No plans available.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
         return
-    keyboard = [[InlineKeyboardButton(f"📺 {c['title']}", callback_data=f"chan_map_select_{c['channel_id']}")] for c in channels]
+    keyboard = [[InlineKeyboardButton(f"📦 {p['name'].split('\n')[0][:40]}", callback_data=f"chan_map_select_{p['plan_id']}")] for p in plans]
     keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="chan_menu")])
-    await edit_message_safely(query, "🔗 **Map Channel to Plans**\n\nSelect the channel:", InlineKeyboardMarkup(keyboard))
+    await edit_message_safely(query, "🔗 **Map Channels to Plan**\n\nSelect a Subscription Plan to manage its channel access:", InlineKeyboardMarkup(keyboard))
 
 async def select_channel_for_mapping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    channel_id = int(query.data.split("_")[-1])
-    await show_channel_mapping_toggles(query, channel_id)
+    plan_id = int(query.data.split("_")[-1])
+    await show_plan_channel_toggles(query, plan_id)
 
-async def show_channel_mapping_toggles(query, channel_id: int) -> None:
-    plans = db.get_all_plans()
-    channel = db.get_premium_channel(channel_id)
-    if not channel:
-        await edit_message_safely(query, "❌ Channel not found.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
+async def show_plan_channel_toggles(query, plan_id: int) -> None:
+    plan = db.get_plan(plan_id)
+    if not plan:
+        await edit_message_safely(query, "❌ Plan not found.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
         return
 
-    mapped_plan_ids = []
-    for p in plans:
-        chans = db.get_channels_for_plan(p["plan_id"])
-        if any(ch["channel_id"] == channel_id for ch in chans):
-            mapped_plan_ids.append(p["plan_id"])
+    channels = db.get_all_premium_channels()
+    mapped_channels = db.get_channels_for_plan(plan_id)
+    mapped_channel_ids = {c["channel_id"] for c in mapped_channels}
 
     keyboard = []
-    for p in plans:
-        is_mapped = p["plan_id"] in mapped_plan_ids
+    for c in channels:
+        is_mapped = c["channel_id"] in mapped_channel_ids
         status_icon = "✅" if is_mapped else "🔳"
-        clean_name = p['name'].split('\n')[0][:40]
-        keyboard.append([InlineKeyboardButton(f"{status_icon} {clean_name}", callback_data=f"chan_toggle_{channel_id}_{p['plan_id']}")])
+        clean_name = c["title"][:40]
+        keyboard.append([InlineKeyboardButton(f"{status_icon} {clean_name}", callback_data=f"chan_toggle_{plan_id}_{c['channel_id']}")])
 
-    keyboard.append([InlineKeyboardButton("🔙 Done / Back", callback_data="chan_menu")])
+    keyboard.append([InlineKeyboardButton("🔙 Done / Back", callback_data="chan_map_start")])
     text = (
-        f"📺 **Channel**: {channel['title']}\n🆔 **ID**: `{channel_id}`\n\n"
-        "Click subscription plans to toggle access:\n- ✅ : Has access\n- 🔳 : No access"
+        f"📦 **Plan**: {plan['name']}\n"
+        f"💵 **Price**: {plan['amount']}\n\n"
+        "Click premium channels to toggle access for this plan:\n- ✅ : Included in plan\n- 🔳 : Not in plan"
     )
     await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
 
@@ -159,22 +157,16 @@ async def toggle_channel_plan_mapping(update: Update, context: ContextTypes.DEFA
     query = update.callback_query
     await query.answer()
     parts = query.data.split("_")
-    channel_id, plan_id = int(parts[2]), int(parts[3])
+    plan_id, channel_id = int(parts[2]), int(parts[3])
 
-    plans = db.get_all_plans()
-    is_currently_mapped = False
-    for p in plans:
-        if p["plan_id"] == plan_id:
-            chans = db.get_channels_for_plan(plan_id)
-            if any(ch["channel_id"] == channel_id for ch in chans):
-                is_currently_mapped = True
-                break
+    mapped_channels = db.get_channels_for_plan(plan_id)
+    is_currently_mapped = any(c["channel_id"] == channel_id for c in mapped_channels)
 
     if is_currently_mapped:
         db.remove_channel_mapping(channel_id, plan_id)
     else:
         db.add_channel_mapping(channel_id, plan_id)
-    await show_channel_mapping_toggles(query, channel_id)
+    await show_plan_channel_toggles(query, plan_id)
 
 async def list_channels_to_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
