@@ -6,6 +6,9 @@ from database import db
 from utils.formatters import build_premium_user_details, clean_username
 from utils.exporter import export_subscriptions_to_docx
 from handlers.admin_modules import SUB_REVOKE_REASON, ADMIN_MENTION_LINK
+from handlers.approval import delete_invite_link_job
+from handlers.user_modules import ADMIN_CONTACT_URL
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +29,7 @@ async def show_subs_menu(query):
     keyboard.append([InlineKeyboardButton("➕ Manually Grant VIP Access / Add User", callback_data="grant_start")])
     keyboard.append([InlineKeyboardButton("📥 Download Subscribers (.doc)", callback_data="admin_download_doc")])
     keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
 async def start_revoke_sub(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
@@ -34,7 +37,7 @@ async def start_revoke_sub(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     sub_id = int(query.data.split("_")[-1])
     sub = db.get_subscription(sub_id)
     if not sub:
-        await query.edit_message_text("❌ Record not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="menu_subs")]]))
+        await query.edit_message_text("❌ Record not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="menu_subs")]]), disable_web_page_preview=True)
         return ConversationHandler.END
 
     context.user_data["action_sub"] = sub
@@ -45,7 +48,8 @@ async def start_revoke_sub(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "(e.g., `Subscription expired / Terms violation`):\n\n"
         "Type /cancel to abort.",
         reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        disable_web_page_preview=True
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
@@ -131,7 +135,7 @@ async def list_plan_subscribers_callback(update: Update, context: ContextTypes.D
 
     if not subs:
         keyboard = [[InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")]]
-        await query.edit_message_text(f"👥 **{plan_title}**\n\n📭 There are currently no subscribers for this plan.", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text(f"👥 **{plan_title}**\n\n📭 There are currently no subscribers for this plan.", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
         return
 
     text = f"👥 **Subscribers for: {plan_title}** (Total: {len(subs)})\n\nClick a subscriber below to view and manage their access details:"
@@ -142,7 +146,7 @@ async def list_plan_subscribers_callback(update: Update, context: ContextTypes.D
         keyboard.append([InlineKeyboardButton(user_display, callback_data=f"admin_manage_sub_{s['sub_id']}")])
 
     keyboard.append([InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
 async def manage_subscriber_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -152,16 +156,17 @@ async def manage_subscriber_callback(update: Update, context: ContextTypes.DEFAU
 
     if not sub:
         keyboard = [[InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")]]
-        await query.edit_message_text("❌ Subscription record not found.", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        await query.edit_message_text("❌ Subscription record not found.", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
         return
 
     details_text = build_premium_user_details(sub)
     keyboard = [
+        [InlineKeyboardButton("🔗 Send Channel Link", callback_data=f"admin_send_link_{sub_id}")],
         [InlineKeyboardButton("🚫 Revoke Access & Remove from DB", callback_data=f"sub_rem_{sub_id}")],
         [InlineKeyboardButton("🔙 Back to Subscribers List", callback_data=f"admin_plan_subs_{sub['plan_id']}")],
         [InlineKeyboardButton("🔙 Subscriber Management Menu", callback_data="menu_subs")]
     ]
-    await query.edit_message_text(f"🛠️ **Subscriber Control Panel**\n\n{details_text}", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    await query.edit_message_text(f"🛠️ **Subscriber Control Panel**\n\n{details_text}", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
 async def download_doc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -177,3 +182,62 @@ async def download_doc_callback(update: Update, context: ContextTypes.DEFAULT_TY
             caption="📥 **Premium Subscribers Export Report**",
             parse_mode="Markdown"
         )
+
+async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    sub_id = int(query.data.split("_")[-1])
+    sub = db.get_subscription(sub_id)
+    if not sub:
+        await query.message.reply_text("❌ Subscription record not found.", disable_web_page_preview=True)
+        return
+
+    plan_link = db.get_setting(f"plan_link_{sub['plan_id']}", "https://t.me/TamilanlinkssSubscription_bot")
+
+    link_msg_text = (
+        "🚨 **SECURE VIP CHANNEL INVITE** 🚨\n\n"
+        "Use the protected button below to join your premium channel.\n\n"
+        "⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
+        "💬 If you face any issues or are unable to join the channel, please contact Admin via the button below directly."
+    )
+
+    link_buttons = [
+        [InlineKeyboardButton("🔗 Join Premium Channel (Protected)", url=plan_link)]
+    ]
+
+    custom_btns_json = db.get_setting(f"link_custom_buttons_{sub['plan_id']}")
+    if custom_btns_json:
+        try:
+            custom_btns = json.loads(custom_btns_json)
+            for b in custom_btns:
+                link_buttons.append([InlineKeyboardButton(b["text"], url=b["url"])])
+        except Exception as e:
+            logger.warning(f"Could not load custom link buttons for plan {sub['plan_id']}: {e}")
+
+    link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
+
+    try:
+        sent_link = await context.bot.send_message(
+            chat_id=sub["user_id"],
+            text=link_msg_text,
+            reply_markup=InlineKeyboardMarkup(link_buttons),
+            parse_mode="Markdown",
+            protect_content=True,
+            disable_web_page_preview=True
+        )
+
+        context.job_queue.run_once(
+            delete_invite_link_job,
+            when=180,
+            data={
+                "chat_id": sub["user_id"],
+                "message_id": sent_link.message_id,
+                "admin_mention": ADMIN_MENTION_LINK
+            }
+        )
+        await query.message.reply_text(f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!", disable_web_page_preview=True)
+    except Exception as e:
+        logger.error(f"Failed to send secure join link to user: {e}")
+        await query.message.reply_text(f"❌ Failed to send link to user. They might have blocked the bot.", disable_web_page_preview=True)
+

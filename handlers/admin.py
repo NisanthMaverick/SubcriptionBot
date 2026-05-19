@@ -28,7 +28,7 @@ from handlers.admin_modules.payment import (
 )
 from handlers.admin_modules.subs_manage import (
     start_revoke_sub, receive_revoke_reason, list_plan_subscribers_callback,
-    manage_subscriber_callback, download_doc_callback
+    manage_subscriber_callback, download_doc_callback, admin_send_link_callback
 )
 from handlers.admin_modules.subs_grant import (
     grant_start, receive_grant_user_id, handle_grant_plan,
@@ -174,5 +174,6 @@ def get_admin_handlers() -> list:
         CallbackQueryHandler(handle_expiry_notify_callbacks, pattern="^set_exp_"),
         CallbackQueryHandler(list_plan_subscribers_callback, pattern="^admin_plan_subs_"),
         CallbackQueryHandler(manage_subscriber_callback, pattern="^admin_manage_sub_"),
-        CallbackQueryHandler(download_doc_callback, pattern="^admin_download_doc$")
+        CallbackQueryHandler(download_doc_callback, pattern="^admin_download_doc$"),
+        CallbackQueryHandler(admin_send_link_callback, pattern="^admin_send_link_")
     ]
