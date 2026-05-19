@@ -18,20 +18,29 @@ async def show_channels_menu(query) -> None:
     channels = db.get_all_premium_channels()
     text = (
         "📺 **Premium Channels Management** 📺\n\n"
-        "Manage monitored premium channels and plan associations.\n\n"
+        "Monitored premium channels and plan associations.\n\n"
         "**Monitored Channels List:**\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
     )
     if not channels:
         text += "⚠️ _No channels added yet._\n"
     else:
+        # Optimize queries: fetch plans and mappings once
+        plans = db.get_all_plans()
+        plan_titles = {p["plan_id"]: p["name"].split("\n")[0].strip() for p in plans}
+        mappings = db.get_all_channel_mappings()
+        
+        channel_plans_map = {}
+        for m in mappings:
+            c_id = m["channel_id"]
+            p_id = m["plan_id"]
+            if p_id in plan_titles:
+                if c_id not in channel_plans_map:
+                    channel_plans_map[c_id] = []
+                channel_plans_map[c_id].append(plan_titles[p_id])
+
         for idx, c in enumerate(channels, 1):
-            mapped_plans = []
-            plans = db.get_all_plans()
-            for p in plans:
-                chans = db.get_channels_for_plan(p["plan_id"])
-                if any(ch["channel_id"] == c["channel_id"] for ch in chans):
-                    mapped_plans.append(p["name"].split("\n")[0].strip())
+            mapped_plans = channel_plans_map.get(c["channel_id"], [])
             plan_str = ", ".join(mapped_plans) if mapped_plans else "_None_"
             text += f"{idx}️⃣ **{c['title']}**\n   ├ 🆔 `{c['channel_id']}`\n   └ 📦 Plans: `{plan_str}`\n\n"
     text += "━━━━━━━━━━━━━━━━━━━━"
@@ -145,10 +154,19 @@ async def show_plan_channel_toggles(query, plan_id: int) -> None:
         clean_name = c["title"][:40]
         keyboard.append([InlineKeyboardButton(f"{status_icon} {clean_name}", callback_data=f"chan_toggle_{plan_id}_{c['channel_id']}")])
 
+    # Select All / Deselect All Row
+    keyboard.append([
+        InlineKeyboardButton("✅ Select All", callback_data=f"chan_mapall_{plan_id}"),
+        InlineKeyboardButton("🔳 Deselect All", callback_data=f"chan_unmapall_{plan_id}")
+    ])
     keyboard.append([InlineKeyboardButton("🔙 Done / Back", callback_data="chan_map_start")])
+
+    total_chans = len(channels)
+    selected_chans = len(mapped_channel_ids)
     text = (
         f"📦 **Plan**: {plan['name']}\n"
-        f"💵 **Price**: {plan['amount']}\n\n"
+        f"💵 **Price**: {plan['amount']}\n"
+        f"📊 **Mapped Channels**: `{selected_chans} / {total_chans}` selected\n\n"
         "Click premium channels to toggle access for this plan:\n- ✅ : Included in plan\n- 🔳 : Not in plan"
     )
     await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
@@ -166,6 +184,24 @@ async def toggle_channel_plan_mapping(update: Update, context: ContextTypes.DEFA
         db.remove_channel_mapping(channel_id, plan_id)
     else:
         db.add_channel_mapping(channel_id, plan_id)
+    await show_plan_channel_toggles(query, plan_id)
+
+async def map_all_channels_to_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    plan_id = int(query.data.split("_")[-1])
+    channels = db.get_all_premium_channels()
+    for c in channels:
+        db.add_channel_mapping(c["channel_id"], plan_id)
+    await show_plan_channel_toggles(query, plan_id)
+
+async def unmap_all_channels_from_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    plan_id = int(query.data.split("_")[-1])
+    channels = db.get_all_premium_channels()
+    for c in channels:
+        db.remove_channel_mapping(c["channel_id"], plan_id)
     await show_plan_channel_toggles(query, plan_id)
 
 async def list_channels_to_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -233,8 +269,7 @@ async def verify_all_channels_status(update: Update, context: ContextTypes.DEFAU
 
     report_text = "📋 **Channel Status & Permissions Report** 📋\n\n━━━━━━━━━━━━━━━━━━━━\n" + "\n\n".join(report_lines) + "\n━━━━━━━━━━━━━━━━━━━━"
     keyboard = [
-        [InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu"),
-         InlineKeyboardButton("🔙 Back to Raid Menu", callback_data="raid_menu")]
+        [InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")]
     ]
     await status_msg.edit_text(report_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -259,6 +294,8 @@ channel_nav_handlers = [
     CallbackQueryHandler(start_map_channel, pattern="^chan_map_start$"),
     CallbackQueryHandler(select_channel_for_mapping, pattern="^chan_map_select_"),
     CallbackQueryHandler(toggle_channel_plan_mapping, pattern="^chan_toggle_"),
+    CallbackQueryHandler(map_all_channels_to_plan, pattern="^chan_mapall_"),
+    CallbackQueryHandler(unmap_all_channels_from_plan, pattern="^chan_unmapall_"),
     CallbackQueryHandler(verify_all_channels_status, pattern="^chan_verify_all$"),
     CallbackQueryHandler(cancel_channel_mapping, pattern="^chan_menu$")
 ]

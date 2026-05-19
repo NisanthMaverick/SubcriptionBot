@@ -110,6 +110,26 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     if enabled != "1" and not admin_query:
         return
 
+    # Check background run interval
+    if not admin_query:
+        import time
+        try:
+            last_scan = float(db.get_setting("last_scan_timestamp", "0"))
+        except ValueError:
+            last_scan = 0.0
+        now = time.time()
+        try:
+            interval_hours = float(db.get_setting("scan_interval_hours", "0.5"))
+        except ValueError:
+            interval_hours = 0.5
+            
+        if now - last_scan < (interval_hours * 3600 - 30):
+            # Not time yet
+            return
+        
+        # Save timestamp
+        db.set_setting("last_scan_timestamp", str(now))
+
     channels = db.get_all_premium_channels()
     if not channels:
         if admin_query:
@@ -225,6 +245,10 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                 parse_mode="Markdown"
             )
         except Exception: pass
+
+    if not admin_query:
+        import time
+        db.set_setting("last_scan_timestamp", str(time.time()))
 
 async def on_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_member = update.chat_member or update.my_chat_member

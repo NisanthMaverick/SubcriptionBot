@@ -79,8 +79,8 @@ def main() -> None:
     if application.job_queue:
         logger.info("Scheduling automated expiry notification job (runs every hour)...")
         application.job_queue.run_repeating(check_subscription_expiry, interval=3600, first=10)
-        logger.info("Scheduling automated channel raid scan job (runs every 30 minutes)...")
-        application.job_queue.run_repeating(scan_channels_job, interval=1800, first=30)
+        logger.info("Scheduling automated channel raid scan job checker (runs every 5 minutes)...")
+        application.job_queue.run_repeating(scan_channels_job, interval=300, first=30)
     else:
         logger.warning("JobQueue is not enabled or available in this environment.")
 

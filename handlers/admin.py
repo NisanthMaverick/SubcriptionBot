@@ -45,7 +45,7 @@ from handlers.admin_modules.cluster import (
     start_broadcast, receive_broadcast, start_add_db, receive_add_db
 )
 from handlers.admin_modules.channel_mapping import channel_add_conv, channel_nav_handlers
-from handlers.admin_modules.raid import raid_timeout_conv, raid_chan_conv, raid_action_handlers
+from handlers.admin_modules.raid import raid_timeout_conv, raid_chan_conv, raid_interval_conv, raid_action_handlers
 
 def get_admin_handlers() -> list:
     add_plan_conv = ConversationHandler(
@@ -174,6 +174,7 @@ def get_admin_handlers() -> list:
         channel_add_conv,
         raid_timeout_conv,
         raid_chan_conv,
+        raid_interval_conv,
         settings_import_conv,
         CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore)"),
         CallbackQueryHandler(handle_edit_plan_selection, pattern="^edit_plan_"),

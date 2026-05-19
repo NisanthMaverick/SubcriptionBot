@@ -10,14 +10,16 @@ logger = logging.getLogger(__name__)
 # States for editing Conversations
 EDIT_TIMEOUT_INPUT = 120
 EDIT_RAID_CHANNEL_INPUT = 121
+EDIT_SCAN_INTERVAL_INPUT = 122
 
 async def show_raid_menu(query) -> None:
     """
-    Displays the Channel Protection / Raid system configuration panel.
+    Displays the Channel Protection system configuration panel.
     """
     raid_enabled = db.get_setting("raid_enabled", "0")
     auto_remove = db.get_setting("auto_remove_enabled", "0")
     timeout = db.get_setting("auto_remove_timeout_mins", "10")
+    scan_interval = db.get_setting("scan_interval_hours", "0.5")
     raid_chan = db.get_setting("raid_channel_id", "")
     if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
         from config import RAID_CHANNEL
@@ -27,28 +29,30 @@ async def show_raid_menu(query) -> None:
     status_rem = "🟢 **ENABLED**" if auto_remove == "1" else "🔴 **DISABLED**"
     
     text = (
-        "👮 **Channel Access Protection (Raid System)** 👮\n\n"
-        "This system scans monitored premium channels in real-time (and periodically in the background) "
-        "to detect and remove members who do not have an active subscription.\n\n"
-        f"🛡️ **Raid Protection Status**: {status_prot}\n"
-        f"🤖 **Auto-Remove Unauthorized**: {status_rem}\n"
-        f"⏱️ **Auto-Remove Timeout**: `{timeout} minutes`\n"
+        "🛡️ **Premium Channels Protection System** 🛡️\n\n"
+        "This system protects your premium channels by scanning for unauthorized members and monitoring new joins.\n\n"
+        f"🛡️ **Auto Scan Protection Status**: {status_prot}\n"
+        f"🤖 **Auto Kick Non-Subscribers**: {status_rem}\n"
+        f"⏱️ **Auto Kick Delay**: `{timeout} minutes`\n"
+        f"⏰ **Background Scan Interval**: `{scan_interval} hours`\n"
         f"📢 **Alert Channel ID**: `{raid_chan or 'Log Channel (Default)'}`\n\n"
         "Configure options below or run an on-demand verification scan:"
     )
 
     keyboard = [
         [
-            InlineKeyboardButton("🛡️ Toggle Protection", callback_data="raid_toggle_prot"),
-            InlineKeyboardButton("🤖 Toggle Auto-Remove", callback_data="raid_toggle_rem")
+            InlineKeyboardButton("🛡️ Auto Scan Protection", callback_data="raid_toggle_prot")
         ],
         [
-            InlineKeyboardButton("⏱️ Edit Timeout", callback_data="raid_edit_time_start"),
-            InlineKeyboardButton("📢 Edit Raid Channel", callback_data="raid_edit_chan_start")
+            InlineKeyboardButton("🤖 Auto-Kick Non-Subscribers", callback_data="raid_toggle_rem")
         ],
         [
-            InlineKeyboardButton("🔍 Trigger Manual Scan Now", callback_data="raid_run_scan"),
-            InlineKeyboardButton("📋 Verify Channels Status", callback_data="chan_verify_all")
+            InlineKeyboardButton("⏱️ Set Auto-Kick Delay", callback_data="raid_edit_time_start"),
+            InlineKeyboardButton("⏰ Set Background Scan Interval", callback_data="raid_edit_interval_start")
+        ],
+        [
+            InlineKeyboardButton("📢 Edit Alert Channel", callback_data="raid_edit_chan_start"),
+            InlineKeyboardButton("🔍 Trigger Manual Scan Now", callback_data="raid_run_scan")
         ],
         [
             InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
@@ -82,9 +86,10 @@ async def start_edit_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")]]
     await query.edit_message_text(
-        "⏱️ **Edit Auto-Remove Timeout**\n\n"
-        "Please send the timeout in minutes (e.g. `10` or `30`) before unauthorized users are automatically banned.\n\n"
-        "Type /cancel to abort.",
+        "⏱️ **Set Auto-Kick Delay Time** ⏱️\n\n"
+        "Please send the number of minutes the bot should wait before automatically kicking an unauthorized user after they join or are detected.\n\n"
+        "Example: Enter `10` for 10 minutes.\n\n"
+        "Type /cancel to keep current settings.",
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode="Markdown"
     )
@@ -115,7 +120,7 @@ async def receive_timeout_input(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
-            text=f"✅ **Auto-Remove Timeout Updated!**\n\n⏱️ New timeout is set to `{minutes} minutes`.",
+            text=f"✅ **Auto-Kick Delay Updated!**\n\n⏱️ New auto-kick delay is set to `{minutes} minutes`.",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode="Markdown"
         )
@@ -231,6 +236,74 @@ async def handle_raid_ignore_action(update: Update, context: ContextTypes.DEFAUL
         reply_markup=None,
         parse_mode="Markdown"
     )
+
+async def start_edit_interval(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")]]
+    await query.edit_message_text(
+        "⏰ **Set Background Scan Interval** ⏰\n\n"
+        "Please send the background scan interval in hours (e.g. `0.5` for 30 minutes, `1` for 1 hour, `6` for 6 hours).\n\n"
+        "Type /cancel to keep current settings.",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="Markdown"
+    )
+    context.user_data["prompt_msg_id"] = query.message.message_id
+    context.user_data["prompt_chat_id"] = query.message.chat_id
+    return EDIT_SCAN_INTERVAL_INPUT
+
+async def receive_interval_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+
+    if "prompt_msg_id" in context.user_data:
+        try:
+            await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
+        except Exception:
+            pass
+
+    try:
+        hours = float(text)
+        if hours <= 0:
+            raise ValueError()
+        
+        db.set_setting("scan_interval_hours", str(hours))
+        
+        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text=f"✅ **Background Scan Interval Updated!**\n\n⏱️ Background scans will run every `{hours} hours`.",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    except Exception:
+        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
+        await context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text="❌ **Invalid Number.** Please send a valid positive number of hours (e.g. `0.5` or `2`).",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown"
+        )
+    
+    context.user_data.clear()
+    return ConversationHandler.END
+
+# Scan Interval Configuration Handler
+raid_interval_conv = ConversationHandler(
+    entry_points=[CallbackQueryHandler(start_edit_interval, pattern="^raid_edit_interval_start$")],
+    states={
+        EDIT_SCAN_INTERVAL_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_interval_input)]
+    },
+    fallbacks=[
+        CallbackQueryHandler(cancel_raid_config, pattern="^raid_cancel$"),
+        CommandHandler("cancel", cancel_raid_config)
+    ],
+    per_message=False
+)
 
 # Timeout Configuration Handler
 raid_timeout_conv = ConversationHandler(
