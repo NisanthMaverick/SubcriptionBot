@@ -115,10 +115,19 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
 
         decline_msg = (
             "❌ **Your payment could not be verified.**\n\n"
-            "Please contact support or resubmit your payment screenshot using /plan."
+            "The payment screenshot you provided appears to be incorrect or invalid.\n\n"
+            "If you have already made the payment and believe this is an error, please contact the Admin using the button below.\n\n"
+            "Otherwise, please use /plan to try again and resubmit a valid screenshot."
         )
+        decline_keyboard = [[InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)]]
         try:
-            await context.bot.send_message(chat_id=sub["user_id"], text=decline_msg, parse_mode="Markdown", disable_web_page_preview=True)
+            await context.bot.send_message(
+                chat_id=sub["user_id"],
+                text=decline_msg,
+                reply_markup=InlineKeyboardMarkup(decline_keyboard),
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
         except Exception as e:
             logger.error(f"Failed to notify user {sub['user_id']}: {e}")
 
