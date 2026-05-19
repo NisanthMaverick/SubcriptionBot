@@ -36,7 +36,7 @@ class SubscriptionQueries(ConnectionManager):
             try:
                 with self._get_cursor(specific_url=url) as (cursor, conn):
                     cursor.execute("""
-                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window
+                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window, log_message_id, last_notified_at
                         FROM subscriptions WHERE sub_id = %s
                     """, (sub_id,))
                     row = cursor.fetchone()
@@ -45,7 +45,8 @@ class SubscriptionQueries(ConnectionManager):
                             "sub_id": row[0], "user_id": row[1], "username": row[2], "profile_link": row[3],
                             "plan_id": row[4], "plan_name": row[5], "duration": row[6], "start_date": row[7],
                             "expiry_date": row[8], "amount": row[9], "status": row[10], "screenshot_file_id": row[11],
-                            "notes": row[12] or "", "notified_window": row[13] or ""
+                            "notes": row[12] or "", "notified_window": row[13] or "",
+                            "log_message_id": row[14] or "", "last_notified_at": row[15] or ""
                         }
             except Exception:
                 pass
@@ -91,6 +92,48 @@ class SubscriptionQueries(ConnectionManager):
             except Exception:
                 pass
 
+    def renew_subscription_record(self, sub_id: int, expiry_date: str, duration: str, amount: str, screenshot_file_id: str) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("""
+                        UPDATE subscriptions
+                        SET expiry_date = %s, duration = %s, amount = %s, screenshot_file_id = %s, status = 'Paid'
+                        WHERE sub_id = %s
+                    """, (expiry_date, duration, amount, screenshot_file_id, sub_id))
+                    if cursor.rowcount > 0:
+                        break
+            except Exception:
+                pass
+
+    def update_subscription_log_message(self, sub_id: int, log_message_id: str) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("UPDATE subscriptions SET log_message_id = %s WHERE sub_id = %s", (log_message_id, sub_id))
+                    if cursor.rowcount > 0:
+                        break
+            except Exception:
+                pass
+
+    def update_last_notified_at(self, sub_id: int, timestamp: str) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("UPDATE subscriptions SET last_notified_at = %s WHERE sub_id = %s", (timestamp, sub_id))
+                    if cursor.rowcount > 0:
+                        break
+            except Exception:
+                pass
+
+
+
     def get_all_subscriptions(self, offset: int = 0, limit: int = 20) -> List[Dict[str, Any]]:
         subs = []
         for url in self._db_urls:
@@ -99,7 +142,7 @@ class SubscriptionQueries(ConnectionManager):
             try:
                 with self._get_cursor(specific_url=url) as (cursor, conn):
                     cursor.execute("""
-                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window
+                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window, log_message_id, last_notified_at
                         FROM subscriptions ORDER BY sub_id DESC LIMIT %s
                     """, (limit + offset,))
                     rows = cursor.fetchall()
@@ -108,7 +151,8 @@ class SubscriptionQueries(ConnectionManager):
                             "sub_id": row[0], "user_id": row[1], "username": row[2], "profile_link": row[3],
                             "plan_id": row[4], "plan_name": row[5], "duration": row[6], "start_date": row[7],
                             "expiry_date": row[8], "amount": row[9], "status": row[10], "screenshot_file_id": row[11],
-                            "notes": row[12] or "", "notified_window": row[13] or ""
+                            "notes": row[12] or "", "notified_window": row[13] or "",
+                            "log_message_id": row[14] or "", "last_notified_at": row[15] or ""
                         })
             except Exception:
                 pass
@@ -123,7 +167,7 @@ class SubscriptionQueries(ConnectionManager):
             try:
                 with self._get_cursor(specific_url=url) as (cursor, conn):
                     cursor.execute("""
-                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window
+                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window, log_message_id, last_notified_at
                         FROM subscriptions WHERE plan_id = %s ORDER BY sub_id DESC
                     """, (plan_id,))
                     rows = cursor.fetchall()
@@ -132,7 +176,8 @@ class SubscriptionQueries(ConnectionManager):
                             "sub_id": row[0], "user_id": row[1], "username": row[2], "profile_link": row[3],
                             "plan_id": row[4], "plan_name": row[5], "duration": row[6], "start_date": row[7],
                             "expiry_date": row[8], "amount": row[9], "status": row[10], "screenshot_file_id": row[11],
-                            "notes": row[12] or "", "notified_window": row[13] or ""
+                            "notes": row[12] or "", "notified_window": row[13] or "",
+                            "log_message_id": row[14] or "", "last_notified_at": row[15] or ""
                         })
             except Exception:
                 pass
@@ -160,7 +205,7 @@ class SubscriptionQueries(ConnectionManager):
             try:
                 with self._get_cursor(specific_url=url) as (cursor, conn):
                     cursor.execute("""
-                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window
+                        SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window, log_message_id, last_notified_at
                         FROM subscriptions WHERE status IN ('Paid', 'Granted') AND expiry_date IS NOT NULL
                     """)
                     rows = cursor.fetchall()
@@ -169,7 +214,8 @@ class SubscriptionQueries(ConnectionManager):
                             "sub_id": row[0], "user_id": row[1], "username": row[2], "profile_link": row[3],
                             "plan_id": row[4], "plan_name": row[5], "duration": row[6], "start_date": row[7],
                             "expiry_date": row[8], "amount": row[9], "status": row[10], "screenshot_file_id": row[11],
-                            "notes": row[12] or "", "notified_window": row[13] or ""
+                            "notes": row[12] or "", "notified_window": row[13] or "",
+                            "log_message_id": row[14] or "", "last_notified_at": row[15] or ""
                         })
             except Exception:
                 pass

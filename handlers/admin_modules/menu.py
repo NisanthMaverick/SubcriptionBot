@@ -39,6 +39,7 @@ async def show_main_menu(update: Update):
          InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config")],
         [InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
          InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast")],
+        [InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore")],
         [InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr")],
         [InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean")],
         [InlineKeyboardButton("❌ Close Panel", callback_data="close_panel")]
@@ -110,6 +111,16 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "menu_config":
         from handlers.admin_modules.config import show_config_menu
         await show_config_menu(query)
+    elif data == "chan_menu":
+        from handlers.admin_modules.channel_mapping import show_channels_menu
+        await show_channels_menu(query)
+    elif data == "raid_menu":
+        from handlers.admin_modules.raid import show_raid_menu
+        await show_raid_menu(query)
+    elif data == "menu_backup_restore":
+        from handlers.admin_modules.config import show_backup_menu
+        await show_backup_menu(query)
+
     elif data == "welcome_config_menu":
         from handlers.admin_modules.config import show_welcome_config_menu
         await show_welcome_config_menu(query)

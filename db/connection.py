@@ -127,6 +127,22 @@ class ConnectionManager:
                         notified_window TEXT DEFAULT ''
                     )
                 """)
+                cursor.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS log_message_id TEXT")
+                cursor.execute("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_notified_at TEXT")
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS premium_channels (
+                        channel_id BIGINT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        invite_link TEXT
+                    )
+                """)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS channel_mappings (
+                        channel_id BIGINT,
+                        plan_id INTEGER,
+                        PRIMARY KEY (channel_id, plan_id)
+                    )
+                """)
                 if idx > 0:
                     cursor.execute("SELECT COUNT(*) FROM subscriptions")
                     cnt = cursor.fetchone()[0]

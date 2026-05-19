@@ -8,7 +8,8 @@ logger = logging.getLogger(__name__)
 async def check_subscription_expiry(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Scheduled job that runs periodically to check for expiring subscriptions.
-    If expiry notifications are enabled by admin, sends reminders 12h, 24h, or 48h before expiry.
+    If expiry notifications are enabled by admin, sends reminders continuously
+    based on the reminder window and interval hours.
     Also handles marking expired subscriptions.
     """
     enabled = db.get_setting("expiry_notify_enabled", "0")
@@ -19,6 +20,11 @@ async def check_subscription_expiry(context: ContextTypes.DEFAULT_TYPE) -> None:
         notify_hours = int(db.get_setting("expiry_notify_hours", "24"))
     except ValueError:
         notify_hours = 24
+
+    try:
+        notify_interval = int(db.get_setting("expiry_notify_interval", "10"))
+    except ValueError:
+        notify_interval = 10
 
     active_subs = db.get_active_paid_subscriptions()
     now = datetime.now()
@@ -42,7 +48,7 @@ async def check_subscription_expiry(context: ContextTypes.DEFAULT_TYPE) -> None:
 
         if total_hours_remaining <= 0:
             # Subscription has expired
-            if sub["status"] == "Paid":
+            if sub["status"] == "Paid" or sub["status"] == "Granted":
                 db.update_subscription_status(sub["sub_id"], status="Expired")
                 expired_msg = (
                     "🔴 **Premium Subscription Expired** 🔴\n\n"
@@ -54,21 +60,34 @@ async def check_subscription_expiry(context: ContextTypes.DEFAULT_TYPE) -> None:
                 except Exception as e:
                     logger.error(f"Failed to send expiry notice to user {sub['user_id']}: {e}")
         elif total_hours_remaining <= notify_hours:
-            # Approaching expiry
-            window_flag = f"notified_{notify_hours}h"
-            current_notified = sub.get("notified_window", "")
+            # Approaching expiry - continuous reminder check
+            last_notified_str = sub.get("last_notified_at", "")
+            should_notify = False
 
-            if window_flag not in current_notified:
-                days_hrs = f"{int(total_hours_remaining // 24)}d {int(total_hours_remaining % 24)}h" if total_hours_remaining > 24 else f"{int(total_hours_remaining)} hours"
+            if not last_notified_str:
+                should_notify = True
+            else:
+                try:
+                    last_notified_dt = datetime.strptime(last_notified_str, "%Y-%m-%d %H:%M:%S")
+                    hours_since_notify = (now - last_notified_dt).total_seconds() / 3600.0
+                    if hours_since_notify >= notify_interval:
+                        should_notify = True
+                except Exception:
+                    should_notify = True
+
+            if should_notify:
+                days = int(total_hours_remaining // 24)
+                hours = int(total_hours_remaining % 24)
+                remaining_str = f"{days}d {hours}h" if days > 0 else f"{hours}h"
+
                 reminder_msg = (
                     "⚠️ **Premium Expiry Reminder** ⚠️\n\n"
-                    f"Hello {sub['username']}, your premium subscription for **{sub['plan_name']}** will expire in approximately **{days_hrs}** (on {sub['expiry_date']}).\n\n"
+                    f"Hello {sub['username']}, your premium subscription for **{sub['plan_name']}** will expire in approximately **{remaining_str}**.\n"
+                    f"📅 **Expiry Date**: {sub['expiry_date']} (End of day)\n\n"
                     "⚡ Avoid any service interruption! Type /plan to renew your subscription early."
                 )
                 try:
                     await context.bot.send_message(chat_id=sub["user_id"], text=reminder_msg, parse_mode="Markdown")
-                    # Update notified window in db
-                    new_notified = f"{current_notified},{window_flag}" if current_notified else window_flag
-                    db.update_notified_window(sub["sub_id"], new_notified)
+                    db.update_last_notified_at(sub["sub_id"], now.strftime("%Y-%m-%d %H:%M:%S"))
                 except Exception as e:
                     logger.error(f"Failed to send reminder notice to user {sub['user_id']}: {e}")

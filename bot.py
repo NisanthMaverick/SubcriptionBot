@@ -8,13 +8,14 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 from telegram import Update
-from telegram.ext import Application
+from telegram.ext import Application, ChatMemberHandler
 from config import BOT_TOKEN
 from handlers.admin import get_admin_handlers
 from handlers.user import get_user_handlers
 from handlers.approval import get_approval_handlers
 from handlers.common import get_common_handlers
 from jobs.notifications import check_subscription_expiry
+from jobs.raid_scanner import scan_channels_job, on_chat_member_update
 
 # Configure logging
 logging.basicConfig(
@@ -71,10 +72,15 @@ def main() -> None:
     for handler in get_common_handlers():
         application.add_handler(handler)
 
+    # Register chat member update handler for real-time join scans
+    application.add_handler(ChatMemberHandler(on_chat_member_update, ChatMemberHandler.CHAT_MEMBER))
+
     # Setup JobQueue for automated expiry notifications
     if application.job_queue:
         logger.info("Scheduling automated expiry notification job (runs every hour)...")
         application.job_queue.run_repeating(check_subscription_expiry, interval=3600, first=10)
+        logger.info("Scheduling automated channel raid scan job (runs every 30 minutes)...")
+        application.job_queue.run_repeating(scan_channels_job, interval=1800, first=30)
     else:
         logger.warning("JobQueue is not enabled or available in this environment.")
 

@@ -71,3 +71,25 @@ def build_premium_user_details(sub: dict) -> str:
         "⚡ Premium activated successfully 🚀"
     )
     return template
+
+def duration_to_days(duration_str: str) -> int:
+    """
+    Parses a duration string (e.g. '30 Days', '1 Month', '1 Year') and returns duration in days.
+    """
+    duration_lower = duration_str.lower().strip()
+    match = re.search(r'(\d+)', duration_lower)
+    num = int(match.group(1)) if match else 1
+
+    if 'year' in duration_lower:
+        return num * 365
+    elif 'month' in duration_lower:
+        return num * 30
+    elif 'week' in duration_lower:
+        return num * 7
+    elif 'day' in duration_lower:
+        return num
+    elif 'hour' in duration_lower:
+        return max(1, num // 24)
+    else:
+        return 30
+

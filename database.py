@@ -5,10 +5,11 @@ from db.users import UserQueries
 from db.settings import SettingQueries
 from db.plans import PlanQueries
 from db.subscriptions import SubscriptionQueries
+from db.channels import ChannelQueries
 
 logger = logging.getLogger(__name__)
 
-class Database(UserQueries, SettingQueries, PlanQueries, SubscriptionQueries):
+class Database(UserQueries, SettingQueries, PlanQueries, SubscriptionQueries, ChannelQueries):
     _instance = None
     _lock = threading.Lock()
 

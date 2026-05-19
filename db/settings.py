@@ -20,6 +20,19 @@ class SettingQueries(ConnectionManager):
                 pass
         return default
 
+    def get_all_settings(self) -> dict:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("SELECT key, value FROM settings")
+                    rows = cursor.fetchall()
+                    return {row[0]: row[1] for row in rows}
+            except Exception:
+                pass
+        return {}
+
     def set_setting(self, key: str, value: str) -> None:
         for url in self._db_urls:
             if self._db_status.get(url) != "Online":

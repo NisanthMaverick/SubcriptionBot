@@ -12,5 +12,6 @@ except ValueError:
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 LOG_CHANNEL = os.getenv("LOG_CHANNEL", "")
+RAID_CHANNEL = os.getenv("RAID_CHANNEL", "")
 
 MAX_PLANS = 10

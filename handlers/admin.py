@@ -38,11 +38,14 @@ from handlers.admin_modules.config import (
     start_welcome_edit_text, receive_welcome_edit_text,
     start_welcome_add_btn, receive_welcome_add_btn, start_ep_extbtn,
     receive_ep_extbtn, start_log_channel, receive_log_channel,
-    expiry_notify_settings, handle_expiry_notify_callbacks
+    expiry_notify_settings, handle_expiry_notify_callbacks,
+    export_bot_settings, settings_import_conv
 )
 from handlers.admin_modules.cluster import (
     start_broadcast, receive_broadcast, start_add_db, receive_add_db
 )
+from handlers.admin_modules.channel_mapping import channel_add_conv, channel_nav_handlers
+from handlers.admin_modules.raid import raid_timeout_conv, raid_chan_conv, raid_action_handlers
 
 def get_admin_handlers() -> list:
     add_plan_conv = ConversationHandler(
@@ -168,12 +171,17 @@ def get_admin_handlers() -> list:
         plan_extbtn_conv,
         broadcast_conv,
         add_db_conv,
-        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_)"),
+        channel_add_conv,
+        raid_timeout_conv,
+        raid_chan_conv,
+        settings_import_conv,
+        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore)"),
         CallbackQueryHandler(handle_edit_plan_selection, pattern="^edit_plan_"),
         CallbackQueryHandler(expiry_notify_settings, pattern="^admin_expiry_notify$"),
         CallbackQueryHandler(handle_expiry_notify_callbacks, pattern="^set_exp_"),
         CallbackQueryHandler(list_plan_subscribers_callback, pattern="^admin_plan_subs_"),
         CallbackQueryHandler(manage_subscriber_callback, pattern="^admin_manage_sub_"),
         CallbackQueryHandler(download_doc_callback, pattern="^admin_download_doc$"),
-        CallbackQueryHandler(admin_send_link_callback, pattern="^admin_send_link_")
-    ]
+        CallbackQueryHandler(admin_send_link_callback, pattern="^admin_send_link_"),
+        CallbackQueryHandler(export_bot_settings, pattern="^admin_export_settings$")
+    ] + channel_nav_handlers + raid_action_handlers

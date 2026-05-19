@@ -1,11 +1,12 @@
 import logging
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 from database import db
 from config import LOG_CHANNEL, ADMIN_ID
-from utils.formatters import calculate_expiry_date, clean_username
+from utils.formatters import calculate_expiry_date, clean_username, duration_to_days
+from utils.subscription_helpers import check_user_active_sub, calculate_extended_expiry, send_user_instructions
 from utils.translator import translate_text
 
 logger = logging.getLogger(__name__)
@@ -33,19 +34,227 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
     admin_name = query.from_user.first_name
 
     if action == "approve":
+        active_sub, is_active = check_user_active_sub(sub["user_id"])
+
+        if is_active:
+            if active_sub["plan_id"] == sub["plan_id"]:
+                # --- CASE 1: Renewal of the SAME plan ---
+                new_expiry = calculate_extended_expiry(active_sub["expiry_date"], sub["duration"])
+                
+                db.renew_subscription_record(
+                    sub_id=active_sub["sub_id"],
+                    expiry_date=new_expiry,
+                    duration=sub["duration"],
+                    amount=sub["amount"],
+                    screenshot_file_id=sub["screenshot_file_id"]
+                )
+                
+                db.delete_subscription(sub_id)
+                updated_sub = db.get_subscription(active_sub["sub_id"])
+
+                try:
+                    await query.message.delete()
+                except Exception as e:
+                    logger.warning(f"Failed to delete original review card: {e}")
+
+                log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+                channel_details_text = (
+                    "💎 **PREMIUM USER DETAILS (RENEWED)** 💎\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**User details** :-\n\n"
+                    f"👤 **User Name** : [{clean_username(updated_sub['username'])}]({updated_sub['profile_link']})\n\n"
+                    f"🆔 **User ID** : `{updated_sub['user_id']}`\n\n"
+                    f"🔗 **Profile Link** : [Click Here]({updated_sub['profile_link']})\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Plan details** :-\n\n"
+                    f"📦 **Selected Plan** : {updated_sub['plan_name']}\n\n"
+                    f"🆔 **Plan Id** : {updated_sub['plan_id']}\n\n"
+                    f"⏰ **Plan Duration** : {updated_sub['duration']} (Extended)\n\n"
+                    f"📅 **Start Date** : {updated_sub['start_date']}\n\n"
+                    f"📅 **Expiry Date** : {updated_sub['expiry_date']}\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Payment details** :-\n\n"
+                    f"💵 **Total Amount paid** : {updated_sub['amount']}\n\n"
+                    "💰 **Payment Status** : ✅ Renewed\n\n"
+                    "📝 **Notes** : Renewed before expiry\n\n"
+                    "━━━━━━━━━━━━━━━\n\n"
+                    "⚡ **Premium extended successfully** 🚀"
+                )
+
+                edited_log = False
+                if log_chan and updated_sub.get("log_message_id"):
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=log_chan,
+                            message_id=int(updated_sub["log_message_id"]),
+                            text=channel_details_text,
+                            parse_mode="Markdown",
+                            disable_web_page_preview=True
+                        )
+                        edited_log = True
+                    except Exception as e:
+                        logger.warning(f"Failed to edit existing log message: {e}")
+
+                if not edited_log:
+                    try:
+                        sent_msg = await context.bot.send_message(
+                            chat_id=query.message.chat.id,
+                            text=channel_details_text,
+                            parse_mode="Markdown",
+                            disable_web_page_preview=True
+                        )
+                        db.update_subscription_log_message(updated_sub["sub_id"], str(sent_msg.message_id))
+                    except Exception as e:
+                        logger.error(f"Failed to send renewed details to channel: {e}")
+
+                user_card_text = (
+                    "🎉 **Premium Subscription Renewed & Extended!** 🎉\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Plan details** :-\n\n"
+                    f"📦 **Selected Plan** : {updated_sub['plan_name']}\n\n"
+                    f"🆔 **Plan Id** : {updated_sub['plan_id']}\n\n"
+                    f"⏰ **Plan Duration** : {updated_sub['duration']}\n\n"
+                    f"📅 **Expiry Date** : {updated_sub['expiry_date']} (Extended)\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Payment details** :-\n\n"
+                    f"💵 **Total Amount paid** : {updated_sub['amount']}\n\n"
+                    "💰 **Payment Status** : ✅ Renewed\n\n"
+                    "━━━━━━━━━━━━━━━\n\n"
+                    "⚡ **Your premium access has been successfully extended!** 🚀"
+                )
+
+                user_buttons = [[InlineKeyboardButton("🔗 Get Channel Link", callback_data=f"get_link_{updated_sub['sub_id']}")]]
+                try:
+                    await context.bot.send_message(
+                        chat_id=updated_sub["user_id"],
+                        text=user_card_text,
+                        reply_markup=InlineKeyboardMarkup(user_buttons),
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send activated card to user: {e}")
+
+                await send_user_instructions(
+                    bot=context.bot,
+                    user_id=updated_sub["user_id"],
+                    plan_id=updated_sub["plan_id"],
+                    expiry_date_str=updated_sub["expiry_date"],
+                    duration_str=updated_sub["duration"],
+                    plan_name=updated_sub["plan_name"]
+                )
+                return
+
+            else:
+                # --- CASE 2: Upgrade / Downgrade (Different Plan) ---
+                try:
+                    active_expiry = datetime.strptime(active_sub["expiry_date"], "%d/%m/%Y").replace(hour=23, minute=59, second=59)
+                    remaining = active_expiry - datetime.now()
+                    remaining_days = max(0, remaining.days)
+                except Exception:
+                    remaining_days = 0
+
+                db.update_subscription_status(active_sub["sub_id"], status="Deactivated", notes=f"Upgraded/Downgraded to Plan #{sub['plan_id']}")
+
+                start_date = datetime.now().strftime("%d/%m/%Y")
+                new_plan_days = duration_to_days(sub["duration"])
+                total_days = new_plan_days + remaining_days
+
+                new_expiry_dt = datetime.now() + timedelta(days=total_days)
+                new_expiry = new_expiry_dt.strftime("%d/%m/%Y")
+
+                db.update_subscription_status(sub_id, status="Paid", start_date=start_date, expiry_date=new_expiry, notes=f"Carried forward {remaining_days} days from Plan #{active_sub['plan_id']}")
+                updated_sub = db.get_subscription(sub_id)
+
+                try:
+                    await query.message.delete()
+                except Exception as e:
+                    logger.warning(f"Failed to delete original review card: {e}")
+
+                channel_details_text = (
+                    "💎 **PREMIUM USER DETAILS (PLAN CHANGE)** 💎\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**User details** :-\n\n"
+                    f"👤 **User Name** : [{clean_username(updated_sub['username'])}]({updated_sub['profile_link']})\n\n"
+                    f"🆔 **User ID** : `{updated_sub['user_id']}`\n\n"
+                    f"🔗 **Profile Link** : [Click Here]({updated_sub['profile_link']})\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Plan details** :-\n\n"
+                    f"📦 **Selected Plan** : {updated_sub['plan_name']} (Change)\n\n"
+                    f"🆔 **Plan Id** : {updated_sub['plan_id']}\n\n"
+                    f"⏰ **Plan Duration** : {updated_sub['duration']}\n\n"
+                    f"📅 **Start Date** : {updated_sub['start_date']}\n\n"
+                    f"📅 **Expiry Date** : {updated_sub['expiry_date']} (Added {remaining_days} carried days)\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Payment details** :-\n\n"
+                    f"💵 **Total Amount paid** : {updated_sub['amount']}\n\n"
+                    "💰 **Payment Status** : ✅ Paid\n\n"
+                    f"📝 **Notes** : Carried {remaining_days} days from plan {active_sub['plan_name']}\n\n"
+                    "━━━━━━━━━━━━━━━\n\n"
+                    "⚡ **New plan activated successfully** 🚀"
+                )
+
+                try:
+                    sent_msg = await context.bot.send_message(
+                        chat_id=query.message.chat.id,
+                        text=channel_details_text,
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True
+                    )
+                    db.update_subscription_log_message(sub_id, str(sent_msg.message_id))
+                except Exception as e:
+                    logger.error(f"Failed to send plan change details: {e}")
+
+                user_card_text = (
+                    "🎉 **Premium Plan Activated!** 🎉\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Plan details** :-\n\n"
+                    f"📦 **Selected Plan** : {updated_sub['plan_name']}\n\n"
+                    f"🆔 **Plan Id** : {updated_sub['plan_id']}\n\n"
+                    f"⏰ **Plan Duration** : {updated_sub['duration']}\n\n"
+                    f"📅 **Expiry Date** : {updated_sub['expiry_date']} (Carried remaining {remaining_days} days!)\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "**Payment details** :-\n\n"
+                    f"💵 **Total Amount paid** : {updated_sub['amount']}\n\n"
+                    "💰 **Payment Status** : ✅ Paid\n\n"
+                    "━━━━━━━━━━━━━━━\n\n"
+                    "⚡ **Your new VIP Access is ready!** 🚀"
+                )
+
+                user_buttons = [[InlineKeyboardButton("🔗 Get Channel Link", callback_data=f"get_link_{sub_id}")]]
+                try:
+                    await context.bot.send_message(
+                        chat_id=updated_sub["user_id"],
+                        text=user_card_text,
+                        reply_markup=InlineKeyboardMarkup(user_buttons),
+                        parse_mode="Markdown",
+                        disable_web_page_preview=True
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send activated card to user: {e}")
+
+                await send_user_instructions(
+                    bot=context.bot,
+                    user_id=updated_sub["user_id"],
+                    plan_id=updated_sub["plan_id"],
+                    expiry_date_str=updated_sub["expiry_date"],
+                    duration_str=updated_sub["duration"],
+                    plan_name=updated_sub["plan_name"]
+                )
+                return
+
+        # Fallback / Default new subscription flow
         start_date = datetime.now().strftime("%d/%m/%Y")
         expiry_date = calculate_expiry_date(start_date, sub["duration"])
 
         db.update_subscription_status(sub_id, status="Paid", start_date=start_date, expiry_date=expiry_date)
         updated_sub = db.get_subscription(sub_id)
 
-        # 1. Delete original review card in log channel / admin chat
         try:
             await query.message.delete()
         except Exception as e:
             logger.warning(f"Failed to delete original review card: {e}")
 
-        # 2. Post exactly formatted details to channel
         channel_details_text = (
             "💎 **PREMIUM USER DETAILS** 💎\n\n"
             "━━━━━━━━━━━━━━━\n"
@@ -70,16 +279,16 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
         )
 
         try:
-            await context.bot.send_message(
+            sent_msg = await context.bot.send_message(
                 chat_id=query.message.chat.id,
                 text=channel_details_text,
                 parse_mode="Markdown",
                 disable_web_page_preview=True
             )
+            db.update_subscription_log_message(sub_id, str(sent_msg.message_id))
         except Exception as e:
             logger.error(f"Failed to send approved details to channel: {e}")
 
-        # 3. Notify User with Receipt Card + Persistent Get Channel Link Button
         user_card_text = (
             "🎉 **Premium Subscription Activated!** 🎉\n\n"
             "━━━━━━━━━━━━━━━\n"
@@ -109,6 +318,15 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
             )
         except Exception as e:
             logger.error(f"Failed to send activated card to user {updated_sub['user_id']}: {e}")
+
+        await send_user_instructions(
+            bot=context.bot,
+            user_id=updated_sub["user_id"],
+            plan_id=updated_sub["plan_id"],
+            expiry_date_str=updated_sub["expiry_date"],
+            duration_str=updated_sub["duration"],
+            plan_name=updated_sub["plan_name"]
+        )
 
     elif action == "decline":
         db.update_subscription_status(sub_id, status="Declined", notes=f"Declined by {admin_name}")
