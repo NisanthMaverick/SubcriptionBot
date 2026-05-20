@@ -110,6 +110,7 @@ async def auto_remove_user_job(context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None) -> None:
     enabled = db.get_setting("raid_enabled", "0")
+    unauthorized_users = []
     if enabled != "1" and not admin_query:
         return
 
@@ -190,6 +191,13 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                     is_admin = member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]
                     if not has_access and not is_admin:
                         unauthorized_count += 1
+                        unauthorized_users.append({
+                            "user_id": user_id,
+                            "username": username,
+                            "first_name": first_name,
+                            "channel_id": channel_id,
+                            "channel_title": channel_title
+                        })
                         await run_member_check(
                             user_id=user_id,
                             username=username,
@@ -236,15 +244,40 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         except Exception: pass
 
     if admin_query:
+        context.user_data["unauthorized_users"] = unauthorized_users
         try:
-            keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
+            if unauthorized_users:
+                text = (
+                    f"✅ **Raid Scan Finished!**\n\n"
+                    f"📺 Channels Checked: `{total_chans}`\n"
+                    f"👥 User Checks Run: `{checked_users_count}`\n"
+                    f"🚨 **Unauthorized Users Detected**: `{len(unauthorized_users)}`\n\n"
+                    f"👇 **Manage Unauthorized Users Below:**"
+                )
+                
+                buttons = []
+                buttons.append([InlineKeyboardButton("🚨 Remove All Unauthorized Users", callback_data="raid_remove_all")])
+                
+                for u in unauthorized_users:
+                    display_name = u["first_name"] if len(u["first_name"]) <= 12 else u["first_name"][:10] + ".."
+                    chan_name = u["channel_title"] if len(u["channel_title"]) <= 15 else u["channel_title"][:12] + ".."
+                    btn_text = f"👤 {display_name} in {chan_name} (❌ Remove)"
+                    buttons.append([InlineKeyboardButton(btn_text, callback_data=f"raid_remove_{u['channel_id']}_{u['user_id']}")])
+                
+                buttons.append([InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")])
+                reply_markup = InlineKeyboardMarkup(buttons)
+            else:
+                text = (
+                    f"✅ **Raid Scan Finished!**\n\n"
+                    f"📺 Channels Checked: `{total_chans}`\n"
+                    f"👥 User Checks Run: `{checked_users_count}`\n"
+                    f"🎉 **Zero unauthorized users found!** All users have active subscriptions."
+                )
+                reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]])
+                
             await admin_query.edit_message_text(
-                f"✅ **Raid Scan Finished!**\n\n"
-                f"📺 Channels Checked: `{total_chans}`\n"
-                f"👥 User Checks Run: `{checked_users_count}`\n"
-                f"🚨 Unauthorized Found: `{unauthorized_count}`\n\n"
-                "Alert cards have been sent to the Raid Alert Channel.",
-                reply_markup=InlineKeyboardMarkup(keyboard),
+                text=text,
+                reply_markup=reply_markup,
                 parse_mode="Markdown"
             )
         except Exception: pass

@@ -209,21 +209,104 @@ async def handle_raid_remove_action(update: Update, context: ContextTypes.DEFAUL
     channel_id = int(parts[2])
     user_id = int(parts[3])
 
+    is_scan_result = "Raid Scan Finished" in (query.message.text or "") or "Remaining Unauthorized Users" in (query.message.text or "")
+
     try:
         await context.bot.ban_chat_member(chat_id=channel_id, user_id=user_id)
         await context.bot.unban_chat_member(chat_id=channel_id, user_id=user_id)
         
-        await query.edit_message_text(
-            text=query.message.text + "\n\n🚫 **User Removed by Admin**",
-            reply_markup=None,
-            parse_mode="Markdown"
-        )
+        if is_scan_result and "unauthorized_users" in context.user_data:
+            # Remove this specific user/channel combination from the list
+            context.user_data["unauthorized_users"] = [
+                u for u in context.user_data["unauthorized_users"]
+                if not (u["user_id"] == user_id and u["channel_id"] == channel_id)
+            ]
+            
+            remaining = context.user_data["unauthorized_users"]
+            if remaining:
+                text = (
+                    f"✅ **Raid Scan Completed!**\n\n"
+                    f"🚨 **Remaining Unauthorized Users**: `{len(remaining)}`\n\n"
+                    f"👇 **Manage Remaining Unauthorized Users:**"
+                )
+                
+                # Rebuild inline keyboard buttons
+                buttons = []
+                buttons.append([InlineKeyboardButton("🚨 Remove All Remaining Users", callback_data="raid_remove_all")])
+                
+                for u in remaining:
+                    display_name = u["first_name"] if len(u["first_name"]) <= 12 else u["first_name"][:10] + ".."
+                    chan_name = u["channel_title"] if len(u["channel_title"]) <= 15 else u["channel_title"][:12] + ".."
+                    btn_text = f"👤 {display_name} in {chan_name} (❌ Remove)"
+                    buttons.append([InlineKeyboardButton(btn_text, callback_data=f"raid_remove_{u['channel_id']}_{u['user_id']}")])
+                
+                buttons.append([InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")])
+                
+                await query.edit_message_text(
+                    text=text,
+                    reply_markup=InlineKeyboardMarkup(buttons),
+                    parse_mode="Markdown"
+                )
+            else:
+                await query.edit_message_text(
+                    text="✅ **Raid Scan Finished!**\n\n🎉 All unauthorized users have been successfully removed!",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]),
+                    parse_mode="Markdown"
+                )
+        else:
+            await query.edit_message_text(
+                text=query.message.text + "\n\n🚫 **User Removed by Admin**",
+                reply_markup=None,
+                parse_mode="Markdown"
+            )
     except Exception as e:
+        if is_scan_result:
+            await query.message.reply_text(f"❌ Failed to remove user: {e}", disable_web_page_preview=True)
+        else:
+            await query.edit_message_text(
+                text=query.message.text + f"\n\n❌ **Failed to remove user**: {e}",
+                reply_markup=None,
+                parse_mode="Markdown"
+            )
+
+async def handle_raid_remove_all_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("Removing all unauthorized users... Please wait.")
+    
+    unauthorized = context.user_data.get("unauthorized_users", [])
+    if not unauthorized:
         await query.edit_message_text(
-            text=query.message.text + f"\n\n❌ **Failed to remove user**: {e}",
-            reply_markup=None,
+            text="✅ **Raid Scan Finished!**\n\nNo unauthorized users found to remove.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]),
             parse_mode="Markdown"
         )
+        return
+
+    success_count = 0
+    fail_count = 0
+    
+    for u in unauthorized:
+        try:
+            await context.bot.ban_chat_member(chat_id=u["channel_id"], user_id=u["user_id"])
+            await context.bot.unban_chat_member(chat_id=u["channel_id"], user_id=u["user_id"])
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Failed to bulk-remove {u['user_id']} from {u['channel_id']}: {e}")
+            fail_count += 1
+            
+    context.user_data["unauthorized_users"] = []
+    
+    result_text = (
+        f"🧹 **Bulk Removal Finished!**\n\n"
+        f"🚫 Successfully removed: `{success_count}` users\n"
+        f"❌ Failed to remove: `{fail_count}` users"
+    )
+    
+    await query.edit_message_text(
+        text=result_text,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]),
+        parse_mode="Markdown"
+    )
 
 async def handle_raid_ignore_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -337,6 +420,7 @@ raid_action_handlers = [
     CallbackQueryHandler(toggle_auto_remove, pattern="^raid_toggle_rem$"),
     CallbackQueryHandler(run_manual_scan, pattern="^raid_run_scan$"),
     CallbackQueryHandler(handle_raid_remove_action, pattern="^raid_remove_"),
+    CallbackQueryHandler(handle_raid_remove_all_action, pattern="^raid_remove_all$"),
     CallbackQueryHandler(handle_raid_ignore_action, pattern="^raid_ignore_"),
     CallbackQueryHandler(cancel_raid_config, pattern="^raid_menu$")
 ]
