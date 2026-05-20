@@ -34,6 +34,8 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
             pass
 
     photo_id = update.message.photo[-1].file_id
+    pay_method = context.user_data.get("payment_method", "QR Code")
+
     plan = context.user_data["selected_plan"]
     duration = context.user_data["selected_duration"]
     price = context.user_data["selected_price"]
@@ -52,13 +54,17 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
         screenshot_file_id=photo_id
     )
 
+    # Persist the selected payment method in the notes column of the subscription
+    db.update_subscription_status(sub_id, status="Pending", notes=pay_method)
+
     log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
     review_caption = (
         f"🔔 **New Subscription Verification Request (#{sub_id})** 🔔\n\n"
         f"👤 **User**: [{user_clean_name}]({profile_link}) (`{user.id}`)\n"
         f"📦 **Plan**: {plan['name'].split('\n')[0]} (ID: {plan['plan_id']})\n"
         f"⏱ **Duration**: {duration}\n"
-        f"💰 **Amount**: {price}"
+        f"💰 **Amount**: {price}\n"
+        f"💳 **Payment Method**: {pay_method}"
     )
     keyboard = [
         [InlineKeyboardButton("✅ Approve", callback_data=f"approve_{sub_id}"),

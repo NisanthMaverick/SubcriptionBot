@@ -13,5 +13,6 @@ except ValueError:
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 LOG_CHANNEL = os.getenv("LOG_CHANNEL", "")
 RAID_CHANNEL = os.getenv("RAID_CHANNEL", "")
+PAYMENT_REDIRECT_URL = os.getenv("PAYMENT_REDIRECT_URL", "")
 
 MAX_PLANS = 10

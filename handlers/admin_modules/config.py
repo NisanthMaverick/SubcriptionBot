@@ -5,7 +5,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from database import db
-from handlers.admin_modules import WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, LOG_CHAN_ID, IMPORT_SETTINGS_FILE
+from handlers.admin_modules import WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, LOG_CHAN_ID, IMPORT_SETTINGS_FILE, TEST_MODE_USERS
 
 logger = logging.getLogger(__name__)
 
@@ -18,15 +18,27 @@ async def edit_message_safely(query, text: str, reply_markup: InlineKeyboardMark
 
 async def show_config_menu(query):
     from utils.keyboard_helper import build_grid_keyboard
+    test_mode = db.get_setting("testing_mode_enabled", "0")
+    test_mode_str = "🟢 ON" if test_mode == "1" else "🔴 OFF"
+    test_users = db.get_setting("testing_mode_users", "None")
     log_chan = db.get_setting("log_channel_id", "Not Configured")
-    text = f"⚙️ **Bot Configurations & Automation** ⚙️\n\nCurrent Log Channel: `{log_chan}`\n\nSelect an action:"
+    
+    text = (
+        "⚙️ **Bot Configurations & Automation** ⚙️\n\n"
+        f"**Current Log Channel**: `{log_chan}`\n"
+        f"**Testing Mode**: {test_mode_str}\n"
+        f"**Test User IDs**: `{test_users}`\n\n"
+        "Select an action:"
+    )
     buttons = [
         InlineKeyboardButton("💬 Customize Welcome Screen (/start)", callback_data="welcome_config_menu"),
         InlineKeyboardButton("📋 Configure Log Channel", callback_data="admin_log_channel"),
         InlineKeyboardButton("⏰ Expiry Notification Settings", callback_data="admin_expiry_notify"),
         InlineKeyboardButton("🔗 Get Link Delivery Settings", callback_data="get_link_config_menu"),
         InlineKeyboardButton("📺 Premium Channels", callback_data="chan_menu"),
-        InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
+        InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu"),
+        InlineKeyboardButton(f"🧪 Toggle Test Mode ({'ON' if test_mode == '1' else 'OFF'})", callback_data="toggle_test_mode"),
+        InlineKeyboardButton("👥 Set Test User IDs", callback_data="set_test_users")
     ]
     back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
     reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
@@ -385,3 +397,35 @@ async def show_link_delivery_config_menu(query, alert=""):
     
     await edit_message_safely(query, text, reply_markup)
 
+async def toggle_test_mode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    current = db.get_setting("testing_mode_enabled", "0")
+    db.set_setting("testing_mode_enabled", "1" if current == "0" else "0")
+    await show_config_menu(query)
+
+async def start_test_mode_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    query = update.callback_query
+    await query.answer()
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("❌ Cancel", callback_data="menu_config"))
+    await edit_message_safely(query, "👥 **Set Test User IDs**\n\nSend a comma-separated list of User IDs that are allowed to test the bot (e.g., `123456,78910`).\n\nType /cancel to abort.", reply_markup)
+    context.user_data["prompt_msg_id"] = query.message.message_id
+    context.user_data["prompt_chat_id"] = query.message.chat_id
+    from handlers.admin_modules import TEST_MODE_USERS
+    return TEST_MODE_USERS
+
+async def receive_test_mode_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    ids = update.message.text.strip()
+    try: await update.message.delete()
+    except Exception: pass
+    if "prompt_msg_id" in context.user_data:
+        try: await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
+        except Exception: pass
+
+    db.set_setting("testing_mode_users", ids)
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config"))
+    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Test User IDs successfully updated to: `{ids}`", reply_markup=reply_markup)
+    context.user_data.clear()
+    return ConversationHandler.END

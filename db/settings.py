@@ -77,7 +77,10 @@ class SettingQueries(ConnectionManager):
             "auto_remove_enabled": "0",
             "auto_remove_timeout_mins": "10",
             "scan_interval_hours": "0.5",
-            "log_channel_id": "Not Set"
+            "log_channel_id": "Not Set",
+            "pay_method_qr_enabled": "1",
+            "pay_method_upi_enabled": "1",
+            "pay_method_app_enabled": "1"
         }
         for k, v in defaults.items():
             if self.get_setting(k) is None:

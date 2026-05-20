@@ -4,11 +4,11 @@ from telegram.ext import (
 )
 from handlers.admin_modules import (
     ADD_PLAN_NAME, ADD_PLAN_DESC, ADD_PLAN_DURATIONS, ADD_DURATION_INPUT,
-    PAY_UPI, PAY_QR, PAY_VALIDITY, LOG_CHAN_ID,
+    PAY_UPI, PAY_QR, PAY_VALIDITY, PAY_REDIRECT_DELAY, LOG_CHAN_ID,
     EDIT_PLAN_TITLE, EDIT_PLAN_DESC, EDIT_PLAN_LINK,
     SUB_REVOKE_REASON, GRANT_USER_ID, GRANT_PLAN, GRANT_DURATION, GRANT_CUSTOM,
     WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, ADMIN_BROADCAST, ADMIN_ADD_DB,
-    ADD_ADMIN_ID
+    ADD_ADMIN_ID, TEST_MODE_USERS, FALLBACK_CHANNEL_LINK
 )
 from handlers.admin_modules.menu import (
     admin_start, settings_command, show_main_menu,
@@ -25,7 +25,9 @@ from handlers.admin_modules.plans_edit import (
 )
 from handlers.admin_modules.payment import (
     start_add_upi, receive_upi, start_setup_qr,
-    receive_qr, start_setup_validity, receive_validity
+    receive_qr, start_setup_validity, receive_validity, toggle_payment_method,
+    start_setup_redirect_delay, receive_redirect_delay,
+    start_fallback_link, receive_fallback_link
 )
 from handlers.admin_modules.subs_manage import (
     start_revoke_sub, receive_revoke_reason, list_plan_subscribers_callback,
@@ -41,7 +43,8 @@ from handlers.admin_modules.config import (
     start_welcome_add_btn, receive_welcome_add_btn, start_ep_extbtn,
     receive_ep_extbtn, start_log_channel, receive_log_channel,
     expiry_notify_settings, handle_expiry_notify_callbacks,
-    export_bot_settings, settings_import_conv
+    export_bot_settings, settings_import_conv,
+    start_test_mode_users, receive_test_mode_users, toggle_test_mode
 )
 from handlers.admin_modules.cluster import (
     start_broadcast, receive_broadcast, start_add_db, receive_add_db
@@ -97,12 +100,16 @@ def get_admin_handlers() -> list:
         entry_points=[
             CallbackQueryHandler(start_add_upi, pattern="^add_upi_id$"),
             CallbackQueryHandler(start_setup_qr, pattern="^setup_qr_code$"),
-            CallbackQueryHandler(start_setup_validity, pattern="^setup_validity$")
+            CallbackQueryHandler(start_setup_validity, pattern="^setup_validity$"),
+            CallbackQueryHandler(start_setup_redirect_delay, pattern="^setup_redirect_delay$"),
+            CallbackQueryHandler(start_fallback_link, pattern="^setup_fallback_link$")
         ],
         states={
             PAY_UPI: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_upi)],
             PAY_QR: [MessageHandler(filters.PHOTO, receive_qr)],
-            PAY_VALIDITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_validity)]
+            PAY_VALIDITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_validity)],
+            PAY_REDIRECT_DELAY: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_redirect_delay)],
+            FALLBACK_CHANNEL_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_fallback_link)]
         },
         fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^menu_payment")]
     )
@@ -113,6 +120,14 @@ def get_admin_handlers() -> list:
             LOG_CHAN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_log_channel)]
         },
         fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^cancel_")]
+    )
+
+    test_mode_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_test_mode_users, pattern="^set_test_users$")],
+        states={
+            TEST_MODE_USERS: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_test_mode_users)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^menu_config")]
     )
 
     sub_revoke_conv = ConversationHandler(
@@ -182,6 +197,8 @@ def get_admin_handlers() -> list:
         welcome_edit_conv,
         welcome_addbtn_conv,
         plan_extbtn_conv,
+        test_mode_conv,
+        CallbackQueryHandler(toggle_test_mode, pattern="^toggle_test_mode$"),
         broadcast_conv,
         add_db_conv,
         admin_access_conv,
@@ -190,7 +207,8 @@ def get_admin_handlers() -> list:
         raid_chan_conv,
         raid_interval_conv,
         settings_import_conv,
-        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore|menu_admin_access|get_link_config_menu|toggle_link_delivery_type|toggle_restrict_link_sharing)"),
+        CallbackQueryHandler(toggle_payment_method, pattern="^toggle_pay_"),
+        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore|menu_admin_access|get_link_config_menu|toggle_link_delivery_type|toggle_restrict_link_sharing|menu_pay_methods)"),
         CallbackQueryHandler(show_remove_admin_list, pattern="^admin_remove_admin_list$"),
         CallbackQueryHandler(remove_admin_action, pattern=r"^admin_deladmin_\d+$"),
         CallbackQueryHandler(confirm_add_admin_role, pattern="^addadmin_role_(sub_admin|super_admin)$"),

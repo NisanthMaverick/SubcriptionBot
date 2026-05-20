@@ -12,11 +12,14 @@ async def show_payment_menu(query, alert_msg: str = ""):
     upi_str = "\n".join([f"{i+1}. `{u}`" for i, u in enumerate(upi_ids)])
     val = db.get_setting("payment_validity", "Pay within 30 minutes")
     qr = "Configured ✅" if db.get_setting("qr_code_file_id") else "Not Configured ❌"
+    fallback_link = db.get_setting("fallback_channel_link", "Not Set")
+    
     text = (
         "💳 **Payment Gateway Settings** 💳\n\n"
         f"**Configured UPI IDs (Max 3)**:\n{upi_str}\n\n"
         f"**Validity Window**: {val}\n"
-        f"**QR Code Image**: {qr}\n\n"
+        f"**QR Code Image**: {qr}\n"
+        f"**Testing Fallback Link**: `{fallback_link}`\n\n"
     )
     if alert_msg:
         text += f"{alert_msg}\n\n"
@@ -26,9 +29,40 @@ async def show_payment_menu(query, alert_msg: str = ""):
         InlineKeyboardButton("➕ Add UPI ID (Max 3)", callback_data="add_upi_id"),
         InlineKeyboardButton("🗑️ Reset UPIs", callback_data="reset_upi_ids"),
         InlineKeyboardButton("🖼️ Add / Update QR Code", callback_data="setup_qr_code"),
-        InlineKeyboardButton("⏳ Set Validity Window", callback_data="setup_validity")
+        InlineKeyboardButton("⏳ Set Validity Window", callback_data="setup_validity"),
+        InlineKeyboardButton("⚙️ Enable Payment Methods", callback_data="menu_pay_methods"),
+        InlineKeyboardButton("🔗 Set Fallback Channel Link", callback_data="setup_fallback_link")
     ]
     back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+
+async def show_toggle_methods_menu(query, alert_msg: str = ""):
+    from utils.keyboard_helper import build_grid_keyboard
+    qr_enabled = "Enabled ✅" if db.get_setting("pay_method_qr_enabled", "1") != "0" else "Disabled ❌"
+    upi_enabled = "Enabled ✅" if db.get_setting("pay_method_upi_enabled", "1") != "0" else "Disabled ❌"
+    app_enabled = "Enabled ✅" if db.get_setting("pay_method_app_enabled", "1") != "0" else "Disabled ❌"
+    delay = db.get_setting("upi_redirect_delay", "4")
+    
+    text = (
+        "⚙️ **Enable Payment Methods** ⚙️\n\n"
+        f"**QR Code Payment**: {qr_enabled}\n"
+        f"**UPI ID Payment**: {upi_enabled}\n"
+        f"**UPI App Payment**: {app_enabled}\n"
+        f"**UPI App Redirect Delay**: {delay} seconds\n\n"
+    )
+    if alert_msg:
+        text += f"{alert_msg}\n\n"
+    text += "Select an action below to toggle payments:"
+
+    buttons = [
+        InlineKeyboardButton(f"📸 {'Disable' if db.get_setting('pay_method_qr_enabled', '1') != '0' else 'Enable'} QR Code", callback_data="toggle_pay_qr"),
+        InlineKeyboardButton(f"🔑 {'Disable' if db.get_setting('pay_method_upi_enabled', '1') != '0' else 'Enable'} UPI ID", callback_data="toggle_pay_upi"),
+        InlineKeyboardButton(f"📲 {'Disable' if db.get_setting('pay_method_app_enabled', '1') != '0' else 'Enable'} UPI App", callback_data="toggle_pay_app"),
+        InlineKeyboardButton("✨ Enable All 3 Payments", callback_data="toggle_pay_all"),
+        InlineKeyboardButton("⏱️ Set UPI App Redirect Delay", callback_data="setup_redirect_delay")
+    ]
+    back_btn = InlineKeyboardButton("🔙 Back to Payment Settings", callback_data="menu_payment")
     reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
@@ -164,5 +198,129 @@ async def receive_validity(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     back_btn = InlineKeyboardButton("🔙 Back to Payment Settings", callback_data="menu_payment")
     reply_markup = build_grid_keyboard([], back_button=back_btn)
     await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Validity window successfully updated to: {new_val}", reply_markup=reply_markup)
+    context.user_data.clear()
+    return ConversationHandler.END
+
+async def toggle_payment_method(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    method = query.data.replace("toggle_pay_", "")
+    
+    if method == "all":
+        db.set_setting("pay_method_qr_enabled", "1")
+        db.set_setting("pay_method_upi_enabled", "1")
+        db.set_setting("pay_method_app_enabled", "1")
+        await show_toggle_methods_menu(query, alert_msg="✅ **All 3 Payment Methods** have been **enabled** successfully!")
+        return
+        
+    setting_key = f"pay_method_{method}_enabled"
+    cur_val = db.get_setting(setting_key, "1")
+    
+    if cur_val != "0":
+        qr_enabled = db.get_setting("pay_method_qr_enabled", "1") != "0"
+        upi_enabled = db.get_setting("pay_method_upi_enabled", "1") != "0"
+        app_enabled = db.get_setting("pay_method_app_enabled", "1") != "0"
+        
+        enabled_count = sum([qr_enabled, upi_enabled, app_enabled])
+        if enabled_count <= 1:
+            await show_toggle_methods_menu(query, alert_msg="⚠️ **Action Blocked**: At least one payment method must remain enabled!")
+            return
+            
+        db.set_setting(setting_key, "0")
+        alert = f"✅ Payment method **{method.upper()}** has been **disabled**."
+    else:
+        db.set_setting(setting_key, "1")
+        alert = f"✅ Payment method **{method.upper()}** has been **enabled**."
+        
+    await show_toggle_methods_menu(query, alert_msg=alert)
+
+async def start_setup_redirect_delay(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    from handlers.admin_modules import PAY_REDIRECT_DELAY
+    query = update.callback_query
+    await query.answer()
+    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_pay_methods")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    prompt_msg = await query.edit_message_text(
+        "⏱️ **Set UPI App Redirect Delay**\n\n"
+        "Please send the redirect delay in seconds (e.g., `4` or `5`).\n\n"
+        "Type /cancel to abort.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+    context.user_data["prompt_msg_id"] = query.message.message_id
+    context.user_data["prompt_chat_id"] = query.message.chat_id
+    return PAY_REDIRECT_DELAY
+
+async def receive_redirect_delay(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    new_val = update.message.text.strip()
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+    if "prompt_msg_id" in context.user_data:
+        try:
+            await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
+        except Exception:
+            pass
+
+    if not new_val.isdigit():
+        back_btn = InlineKeyboardButton("❌ Cancel", callback_data="menu_pay_methods")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        sent_msg = await update.message.reply_text("⚠️ Please send a valid number in seconds.", reply_markup=reply_markup)
+        context.user_data["prompt_msg_id"] = sent_msg.message_id
+        context.user_data["prompt_chat_id"] = sent_msg.chat_id
+        from handlers.admin_modules import PAY_REDIRECT_DELAY
+        return PAY_REDIRECT_DELAY
+
+    db.set_setting("upi_redirect_delay", new_val)
+    back_btn = InlineKeyboardButton("🔙 Back to Payment Settings", callback_data="menu_pay_methods")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ UPI App Redirect Delay successfully updated to: {new_val} seconds", reply_markup=reply_markup)
+    context.user_data.clear()
+    return ConversationHandler.END
+
+async def start_fallback_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    from handlers.admin_modules import FALLBACK_CHANNEL_LINK
+    query = update.callback_query
+    await query.answer()
+    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_payment")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    prompt_msg = await query.edit_message_text(
+        "🔗 **Set Fallback Channel Link**\n\n"
+        "Send the public link or invite link of your channel (e.g. `https://t.me/mychannel`).\n"
+        "This link is shown to users if they try to access the bot while Testing Mode is ON.\n\n"
+        "To clear the link, send `clear`.\n\n"
+        "Type /cancel to abort.",
+        reply_markup=reply_markup,
+        parse_mode="Markdown"
+    )
+    context.user_data["prompt_msg_id"] = query.message.message_id
+    context.user_data["prompt_chat_id"] = query.message.chat_id
+    return FALLBACK_CHANNEL_LINK
+
+async def receive_fallback_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    link = update.message.text.strip()
+    try: await update.message.delete()
+    except Exception: pass
+    if "prompt_msg_id" in context.user_data:
+        try: await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
+        except Exception: pass
+
+    if link.lower() == "clear":
+        db.set_setting("fallback_channel_link", "")
+        alert = "✅ Fallback link has been cleared."
+    else:
+        if not link.startswith("http"):
+            link = "https://" + link
+        db.set_setting("fallback_channel_link", link)
+        alert = f"✅ Fallback link updated to: `{link}`"
+
+    back_btn = InlineKeyboardButton("🔙 Back to Payment Settings", callback_data="menu_payment")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    await context.bot.send_message(chat_id=update.message.chat_id, text=alert, reply_markup=reply_markup, parse_mode="Markdown")
     context.user_data.clear()
     return ConversationHandler.END

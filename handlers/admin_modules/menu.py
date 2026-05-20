@@ -140,6 +140,9 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "menu_payment":
         from handlers.admin_modules.payment import show_payment_menu
         await show_payment_menu(query)
+    elif data == "menu_pay_methods":
+        from handlers.admin_modules.payment import show_toggle_methods_menu
+        await show_toggle_methods_menu(query)
     elif data == "reset_upi_ids":
         db.save_upi_ids(["nisanthlatha2001-3@okaxis"])
         from handlers.admin_modules.payment import show_payment_menu
