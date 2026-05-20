@@ -248,16 +248,22 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
             disable_web_page_preview=True
         )
 
-        context.job_queue.run_once(
-            delete_invite_link_job,
-            when=180,
-            data={
-                "chat_id": sub["user_id"],
-                "message_id": sent_link.message_id,
-                "admin_mention": ADMIN_MENTION_LINK
-            }
-        )
-        await query.message.reply_text(f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!", disable_web_page_preview=True)
+        if context.job_queue:
+            context.job_queue.run_once(
+                delete_invite_link_job,
+                when=180,
+                data={
+                    "chat_id": sub["user_id"],
+                    "message_id": sent_link.message_id,
+                    "admin_mention": ADMIN_MENTION_LINK
+                }
+            )
+            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!"
+        else:
+            logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
+            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - Scheduler Offline)"
+
+        await query.message.reply_text(success_text, disable_web_page_preview=True)
     except Exception as e:
         logger.error(f"Failed to send secure join link to user: {e}")
         await query.message.reply_text(f"❌ Failed to send link to user. They might have blocked the bot.", disable_web_page_preview=True)

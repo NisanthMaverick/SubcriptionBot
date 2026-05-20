@@ -381,15 +381,18 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
         )
 
         # Schedule deletion job in 180 seconds
-        context.job_queue.run_once(
-            delete_invite_link_job,
-            when=180,
-            data={
-                "chat_id": sub["user_id"],
-                "message_id": sent_link.message_id,
-                "admin_mention": ADMIN_MENTION_LINK
-            }
-        )
+        if context.job_queue:
+            context.job_queue.run_once(
+                delete_invite_link_job,
+                when=180,
+                data={
+                    "chat_id": sub["user_id"],
+                    "message_id": sent_link.message_id,
+                    "admin_mention": ADMIN_MENTION_LINK
+                }
+            )
+        else:
+            logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
     except Exception as e:
         logger.error(f"Failed to send secure join link to user: {e}")
 

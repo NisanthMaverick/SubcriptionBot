@@ -57,18 +57,21 @@ async def run_member_check(user_id: int, username: str, first_name: str, channel
         if auto_remove == "1":
             try: timeout = int(db.get_setting("auto_remove_timeout_mins", "10"))
             except ValueError: timeout = 10
-            context.job_queue.run_once(
-                auto_remove_user_job,
-                when=timeout * 60,
-                data={
-                    "chat_id": raid_chan,
-                    "message_id": sent_alert.message_id,
-                    "channel_id": channel_id,
-                    "user_id": user_id,
-                    "first_name": first_name,
-                    "username": username
-                }
-            )
+            if context.job_queue:
+                context.job_queue.run_once(
+                    auto_remove_user_job,
+                    when=timeout * 60,
+                    data={
+                        "chat_id": raid_chan,
+                        "message_id": sent_alert.message_id,
+                        "channel_id": channel_id,
+                        "user_id": user_id,
+                        "first_name": first_name,
+                        "username": username
+                    }
+                )
+            else:
+                logger.warning("JobQueue is not active. Auto-remove user job skipped.")
     except Exception as e:
         logger.error(f"Failed to process raid alert: {e}")
 
