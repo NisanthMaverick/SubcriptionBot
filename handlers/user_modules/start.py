@@ -180,7 +180,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user_clean = clean_username(user.first_name or user.username or "User")
     is_new_user = db.add_user(user.id, user.username or "", user.first_name or "")
     profile_link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
-    log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+    log_chan = db.get_setting("sub_log_channel_id", "")
+    if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
+        log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
 
     if is_new_user:
         start_log_msg = (

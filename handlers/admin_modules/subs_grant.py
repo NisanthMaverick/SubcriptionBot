@@ -208,7 +208,9 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
     except Exception as e:
         logger.warning(f"Failed to notify granted user {uid}: {e}")
 
-    log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+    log_chan = db.get_setting("sub_log_channel_id", "")
+    if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
+        log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
     channel_details_text = (
         "👑 **ADMIN MANUAL VIP GRANT** 👑\n\n"
         "━━━━━━━━━━━━━━━\n"

@@ -24,15 +24,10 @@ async def run_member_check(user_id: int, username: str, first_name: str, channel
     if has_access:
         return
 
-    raid_chan = db.get_setting("raid_channel_id", "")
+    raid_chan = db.get_setting("log_channel_id", "")
     if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        from config import RAID_CHANNEL
-        raid_chan = RAID_CHANNEL
-    if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        raid_chan = db.get_setting("log_channel_id", "")
-    if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        from config import ADMIN_ID
-        raid_chan = ADMIN_ID
+        from config import LOG_CHANNEL, ADMIN_ID
+        raid_chan = LOG_CHANNEL if LOG_CHANNEL else ADMIN_ID
 
     alert_text = (
         "🚨 **RAID / UNAUTHORIZED JOIN DETECTED** 🚨\n\n"
@@ -217,10 +212,10 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     chan_tracking_msg = None
     
     # Check if raid channel is configured
-    raid_chan = db.get_setting("raid_channel_id", "")
+    raid_chan = db.get_setting("log_channel_id", "")
     if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        from config import RAID_CHANNEL
-        raid_chan = RAID_CHANNEL
+        from config import LOG_CHANNEL, ADMIN_ID
+        raid_chan = LOG_CHANNEL if LOG_CHANNEL else ADMIN_ID
         
     is_raid_chan_configured = False
     if raid_chan and raid_chan not in ["Not Configured", "Not Set", "None", ""]:

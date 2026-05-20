@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 # States for editing Conversations
 EDIT_TIMEOUT_INPUT = 120
-EDIT_RAID_CHANNEL_INPUT = 121
 EDIT_SCAN_INTERVAL_INPUT = 122
 
 async def show_raid_menu(query) -> None:
@@ -21,10 +20,10 @@ async def show_raid_menu(query) -> None:
     auto_remove = db.get_setting("auto_remove_enabled", "0")
     timeout = db.get_setting("auto_remove_timeout_mins", "10")
     scan_interval = db.get_setting("scan_interval_hours", "0.5")
-    raid_chan = db.get_setting("raid_channel_id", "")
+    raid_chan = db.get_setting("log_channel_id", "")
     if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        from config import RAID_CHANNEL
-        raid_chan = RAID_CHANNEL
+        from config import LOG_CHANNEL
+        raid_chan = LOG_CHANNEL
     
     status_prot = "🟢 **ENABLED**" if raid_enabled == "1" else "🔴 **DISABLED**"
     status_rem = "🟢 **ENABLED**" if auto_remove == "1" else "🔴 **DISABLED**"
@@ -45,7 +44,6 @@ async def show_raid_menu(query) -> None:
         InlineKeyboardButton("🤖 Auto-Kick Non-Subscribers", callback_data="raid_toggle_rem"),
         InlineKeyboardButton("⏱️ Set Auto-Kick Delay", callback_data="raid_edit_time_start"),
         InlineKeyboardButton("⏰ Set Background Scan Interval", callback_data="raid_edit_interval_start"),
-        InlineKeyboardButton("📢 Edit Alert Channel", callback_data="raid_edit_chan_start"),
         InlineKeyboardButton("🔍 Trigger Manual Scan Now", callback_data="raid_run_scan")
     ]
     back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
@@ -124,61 +122,6 @@ async def receive_timeout_input(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text="❌ **Invalid Number.** Please send a valid positive number of minutes.",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-    
-    context.user_data.clear()
-    return ConversationHandler.END
-
-async def start_edit_raid_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    from utils.keyboard_helper import build_grid_keyboard
-    query = update.callback_query
-    await query.answer()
-    
-    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")
-    reply_markup = build_grid_keyboard([], back_button=back_btn)
-    await query.edit_message_text(
-        "📢 **Configure Raid Alert Channel**\n\n"
-        "Please send the Telegram Channel ID where the bot should post unauthorized access alerts (e.g. `-1003564494376`).\n\n"
-        "Type /cancel to abort.",
-        reply_markup=reply_markup,
-        parse_mode="Markdown"
-    )
-    context.user_data["prompt_msg_id"] = query.message.message_id
-    context.user_data["prompt_chat_id"] = query.message.chat_id
-    return EDIT_RAID_CHANNEL_INPUT
-
-async def receive_raid_channel_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    from utils.keyboard_helper import build_grid_keyboard
-    text = update.message.text.strip()
-    try:
-        await update.message.delete()
-    except Exception:
-        pass
-
-    if "prompt_msg_id" in context.user_data:
-        try:
-            await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
-        except Exception:
-            pass
-
-    back_btn = InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")
-    reply_markup = build_grid_keyboard([], back_button=back_btn)
-    try:
-        channel_id = int(text)
-        db.set_setting("raid_channel_id", str(channel_id))
-        
-        await context.bot.send_message(
-            chat_id=update.message.chat_id,
-            text=f"✅ **Raid Alert Channel Updated!**\n\n📢 New Alert Channel ID: `{channel_id}`",
-            reply_markup=reply_markup,
-            parse_mode="Markdown"
-        )
-    except Exception:
-        await context.bot.send_message(
-            chat_id=update.message.chat_id,
-            text="❌ **Invalid Channel ID.** Please send a valid Telegram Channel ID (e.g. starting with -100).",
             reply_markup=reply_markup,
             parse_mode="Markdown"
         )
@@ -700,18 +643,7 @@ raid_timeout_conv = ConversationHandler(
     per_message=False
 )
 
-# Raid Channel Configuration Handler
-raid_chan_conv = ConversationHandler(
-    entry_points=[CallbackQueryHandler(start_edit_raid_channel, pattern="^raid_edit_chan_start$")],
-    states={
-        EDIT_RAID_CHANNEL_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_raid_channel_input)]
-    },
-    fallbacks=[
-        CallbackQueryHandler(cancel_raid_config, pattern="^raid_cancel$"),
-        CommandHandler("cancel", cancel_raid_config)
-    ],
-    per_message=False
-)
+
 
 raid_action_handlers = [
     CallbackQueryHandler(toggle_raid_protection, pattern="^raid_toggle_prot$"),

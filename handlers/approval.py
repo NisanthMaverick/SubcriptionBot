@@ -30,7 +30,9 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
 
     active_sub, is_active = check_user_active_sub(sub["user_id"])
 
-    log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+    log_chan = db.get_setting("sub_log_channel_id", "")
+    if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
+        log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
     target_chat = log_chan if (log_chan and log_chan not in ["Not Configured", "Not Set", "None", ""]) else (query.message.chat.id if query else ADMIN_ID)
 
     if is_active:

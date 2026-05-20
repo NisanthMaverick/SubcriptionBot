@@ -92,7 +92,9 @@ async def receive_revoke_reason(update: Update, context: ContextTypes.DEFAULT_TY
     except Exception as e:
         logger.warning(f"Failed to notify revoked user {sub['user_id']}: {e}")
 
-    log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+    log_chan = db.get_setting("sub_log_channel_id", "")
+    if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
+        log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
     audit_text = (
         "🚨 **AUDIT LOG: USER SUBSCRIPTION REVOKED & DELETED** 🚨\n\n"
         f"👤 **User**: [{clean_username(sub['username'])}]({sub['profile_link']}) (`{sub['user_id']}`)\n"

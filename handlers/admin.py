@@ -8,7 +8,7 @@ from handlers.admin_modules import (
     EDIT_PLAN_TITLE, EDIT_PLAN_DESC, EDIT_PLAN_LINK,
     SUB_REVOKE_REASON, GRANT_USER_ID, GRANT_PLAN, GRANT_DURATION, GRANT_CUSTOM,
     WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, ADMIN_BROADCAST, ADMIN_ADD_DB,
-    ADD_ADMIN_ID, TEST_MODE_USERS, FALLBACK_CHANNEL_LINK
+    ADD_ADMIN_ID, TEST_MODE_USERS, FALLBACK_CHANNEL_LINK, SUB_LOG_CHAN_ID
 )
 from handlers.admin_modules.menu import (
     admin_start, settings_command, show_main_menu,
@@ -42,6 +42,7 @@ from handlers.admin_modules.config import (
     start_welcome_edit_text, receive_welcome_edit_text,
     start_welcome_add_btn, receive_welcome_add_btn, start_ep_extbtn,
     receive_ep_extbtn, start_log_channel, receive_log_channel,
+    start_sub_log_channel, receive_sub_log_channel,
     expiry_notify_settings, handle_expiry_notify_callbacks,
     export_bot_settings, settings_import_conv,
     start_test_mode_users, receive_test_mode_users, toggle_test_mode
@@ -50,7 +51,7 @@ from handlers.admin_modules.cluster import (
     start_broadcast, receive_broadcast, start_add_db, receive_add_db
 )
 from handlers.admin_modules.channel_mapping import channel_add_conv, channel_nav_handlers
-from handlers.admin_modules.raid import raid_timeout_conv, raid_chan_conv, raid_interval_conv, raid_action_handlers
+from handlers.admin_modules.raid import raid_timeout_conv, raid_interval_conv, raid_action_handlers
 from handlers.admin_modules.admin_access import (
     start_add_admin, receive_admin_id, confirm_add_admin_role, confirm_add_admin_duration,
     show_remove_admin_list, remove_admin_action, cancel_admin_access_flow
@@ -118,6 +119,14 @@ def get_admin_handlers() -> list:
         entry_points=[CallbackQueryHandler(start_log_channel, pattern="^admin_log_channel$")],
         states={
             LOG_CHAN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_log_channel)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^cancel_")]
+    )
+
+    sub_log_channel_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_sub_log_channel, pattern="^admin_sub_log_channel$")],
+        states={
+            SUB_LOG_CHAN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_sub_log_channel)]
         },
         fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^cancel_")]
     )
@@ -192,6 +201,7 @@ def get_admin_handlers() -> list:
         edit_dur_conv,
         payment_conv,
         log_channel_conv,
+        sub_log_channel_conv,
         sub_revoke_conv,
         grant_sub_conv,
         welcome_edit_conv,
@@ -204,7 +214,6 @@ def get_admin_handlers() -> list:
         admin_access_conv,
         channel_add_conv,
         raid_timeout_conv,
-        raid_chan_conv,
         raid_interval_conv,
         settings_import_conv,
         CallbackQueryHandler(toggle_payment_method, pattern="^toggle_pay_"),

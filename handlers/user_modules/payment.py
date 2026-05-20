@@ -57,7 +57,9 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
     # Persist the selected payment method in the notes column of the subscription
     db.update_subscription_status(sub_id, status="Pending", notes=pay_method)
 
-    log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+    log_chan = db.get_setting("sub_log_channel_id", "")
+    if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
+        log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
     review_caption = (
         f"🔔 **New Subscription Verification Request (#{sub_id})** 🔔\n\n"
         f"👤 **User**: [{user_clean_name}]({profile_link}) (`{user.id}`)\n"

@@ -5,7 +5,7 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from database import db
-from handlers.admin_modules import WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, LOG_CHAN_ID, IMPORT_SETTINGS_FILE, TEST_MODE_USERS
+from handlers.admin_modules import WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, LOG_CHAN_ID, IMPORT_SETTINGS_FILE, TEST_MODE_USERS, SUB_LOG_CHAN_ID
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +22,20 @@ async def show_config_menu(query):
     test_mode_str = "🟢 ON" if test_mode == "1" else "🔴 OFF"
     test_users = db.get_setting("testing_mode_users", "None")
     log_chan = db.get_setting("log_channel_id", "Not Configured")
+    sub_log_chan = db.get_setting("sub_log_channel_id", "Not Configured")
     
     text = (
         "⚙️ **Bot Configurations & Automation** ⚙️\n\n"
-        f"**Current Log Channel**: `{log_chan}`\n"
+        f"**System Log Channel**: `{log_chan}`\n"
+        f"**Subscription Log Channel**: `{sub_log_chan}`\n"
         f"**Testing Mode**: {test_mode_str}\n"
         f"**Test User IDs**: `{test_users}`\n\n"
         "Select an action:"
     )
     buttons = [
         InlineKeyboardButton("💬 Customize Welcome Screen (/start)", callback_data="welcome_config_menu"),
-        InlineKeyboardButton("📋 Configure Log Channel", callback_data="admin_log_channel"),
+        InlineKeyboardButton("📋 Config System Log Channel", callback_data="admin_log_channel"),
+        InlineKeyboardButton("📋 Config Subscription Log Channel", callback_data="admin_sub_log_channel"),
         InlineKeyboardButton("⏰ Expiry Notification Settings", callback_data="admin_expiry_notify"),
         InlineKeyboardButton("🔗 Get Link Delivery Settings", callback_data="get_link_config_menu"),
         InlineKeyboardButton("📺 Premium Channels", callback_data="chan_menu"),
@@ -335,6 +338,73 @@ async def receive_import_file(update: Update, context: ContextTypes.DEFAULT_TYPE
         await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ **Failed to import settings:**\n\n`{e}`", reply_markup=reply_markup)
 
     context.user_data.clear()
+    return ConversationHandler.END
+
+async def start_sub_log_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    query = update.callback_query
+    await query.answer()
+    
+    current_log = db.get_setting("sub_log_channel_id", "Not Set")
+    text = (
+        "📋 **Configure Subscription Log Channel** 📋\n\n"
+        f"**Current Channel ID:** `{current_log}`\n\n"
+        "Please send the Channel ID (e.g., `-1001234567890`) where subscription updates (approvals, payments, revokes) should be sent.\n\n"
+        "⚠️ *Make sure the bot is an Admin in the channel first!*\n\n"
+        "Type /cancel to abort."
+    )
+    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_config")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    await edit_message_safely(query, text, reply_markup)
+    
+    context.user_data["prompt_msg_id"] = query.message.message_id
+    context.user_data["prompt_chat_id"] = query.message.chat_id
+    return SUB_LOG_CHAN_ID
+
+async def receive_sub_log_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    chan = update.message.text.strip()
+    
+    try:
+        await update.message.delete()
+    except:
+        pass
+        
+    if "prompt_msg_id" in context.user_data:
+        try:
+            await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
+        except:
+            pass
+
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+
+    if not (chan.startswith('-100') and chan[4:].isdigit()):
+        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ Invalid format. Must start with '-100' followed by numbers.", reply_markup=reply_markup)
+        context.user_data.clear()
+        return ConversationHandler.END
+
+    db.set_setting("sub_log_channel_id", chan)
+    try:
+        await context.bot.send_message(
+            chat_id=chan,
+            text="✅ **Subscription Log Channel Verification**\n\nThe Subscription Bot has been successfully linked to this channel. Future subscription logs will be posted here.",
+            parse_mode="Markdown"
+        )
+        await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Subscription Log Channel successfully set to `{chan}` and verified!", reply_markup=reply_markup, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Error receiving subscription log channel: {e}")
+        await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ An error occurred: {e}", reply_markup=reply_markup)
+    
+    context.user_data.clear()
+    return ConversationHandler.END
+
+async def start_ep_extbtn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    if query: await query.answer()
+    context.user_data.clear()
+    if query:
+        await show_backup_menu(query)
     return ConversationHandler.END
 
 async def cancel_import(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
