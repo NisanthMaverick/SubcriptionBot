@@ -136,7 +136,7 @@ async def list_plan_subscribers_callback(update: Update, context: ContextTypes.D
     plan_id = int(query.data.split("_")[-1])
 
     if plan_id == 0:
-        subs = db.get_all_subscriptions(offset=0, limit=500)
+        subs = db.get_active_paid_subscriptions()
         plan_title = "All Active Subscribers"
     else:
         subs = db.get_subscriptions_by_plan(plan_id)

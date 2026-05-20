@@ -94,6 +94,19 @@ class SubscriptionQueries(ConnectionManager):
             except Exception as e:
                 logger.warning(f"delete_subscription failed on DB {url[:30]}: {e}")
 
+    def delete_other_user_subscriptions(self, user_id: int, keep_sub_id: int) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute(
+                        "DELETE FROM subscriptions WHERE user_id = %s AND sub_id != %s",
+                        (user_id, keep_sub_id)
+                    )
+            except Exception as e:
+                logger.warning(f"delete_other_user_subscriptions failed on DB {url[:30]}: {e}")
+
     def update_notified_window(self, sub_id: int, window: str) -> None:
         for url in self._db_urls:
             if self._db_status.get(url) != "Online":
@@ -164,7 +177,7 @@ class SubscriptionQueries(ConnectionManager):
         try:
             rows = self._run_read_query("""
                 SELECT sub_id, user_id, username, profile_link, plan_id, plan_name, duration, start_date, expiry_date, amount, status, screenshot_file_id, notes, notified_window, log_message_id, last_notified_at
-                FROM subscriptions WHERE plan_id = %s ORDER BY sub_id DESC
+                FROM subscriptions WHERE plan_id = %s AND status IN ('Paid', 'Granted') ORDER BY sub_id DESC
             """, (plan_id,))
             subs = []
             for row in rows:

@@ -146,7 +146,7 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                 except Exception:
                     remaining_days = 0
 
-                db.update_subscription_status(active_sub["sub_id"], status="Deactivated", notes=f"Upgraded/Downgraded to Plan #{sub['plan_id']}")
+                db.delete_subscription(active_sub["sub_id"])
 
                 start_date = datetime.now().strftime("%d/%m/%Y")
                 new_plan_days = duration_to_days(sub["duration"])
@@ -156,6 +156,7 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                 new_expiry = new_expiry_dt.strftime("%d/%m/%Y")
 
                 db.update_subscription_status(sub_id, status="Paid", start_date=start_date, expiry_date=new_expiry, notes=f"Carried forward {remaining_days} days from Plan #{active_sub['plan_id']}")
+                db.delete_other_user_subscriptions(sub["user_id"], sub_id)
                 updated_sub = db.get_subscription(sub_id)
 
                 try:
@@ -232,6 +233,7 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
         expiry_date = calculate_expiry_date(start_date, sub["duration"])
 
         db.update_subscription_status(sub_id, status="Paid", start_date=start_date, expiry_date=expiry_date)
+        db.delete_other_user_subscriptions(sub["user_id"], sub_id)
         updated_sub = db.get_subscription(sub_id)
 
         try:

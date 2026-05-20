@@ -174,6 +174,7 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
         amount=price_str, screenshot_file_id="N/A"
     )
     db.update_subscription_status(sub_id, status="Granted", start_date=start_date, expiry_date=expiry_date, notes="Granted manually by Admin")
+    db.delete_other_user_subscriptions(uid, sub_id)
 
     notify_status = "⚠️ Note: Could not deliver VIP receipt and join link directly to user (User may have blocked the bot or not started it)."
     user_card_text = (
