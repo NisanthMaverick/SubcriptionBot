@@ -51,16 +51,33 @@ async def send_user_instructions(bot, user_id: int, plan_id: int, expiry_date_st
     remaining_days = max(0, remaining.days)
     remaining_hours = max(0, int(remaining.seconds // 3600))
     
+    delivery_type = db.get_setting("link_delivery_type", "folder")
+    protect = db.get_setting("restrict_link_sharing", "1") == "1"
+    
     channels = db.get_channels_for_plan(plan_id)
+    plan_link = db.get_setting(f"plan_link_{plan_id}")
+    
     channel_links = ""
-    if channels:
+    buttons = []
+    
+    if delivery_type == "individual" and channels:
         channel_links = "\n".join([f"📺 **{c['title']}**: [Join Channel]({c['invite_link']})" for c in channels])
+        for c in channels:
+            buttons.append([InlineKeyboardButton(f"Join {c['title']}", url=c['invite_link'])])
     else:
-        plan_link = db.get_setting(f"plan_link_{plan_id}")
+        # folder delivery (or fallback if no channels configured)
         if plan_link:
             channel_links = f"📺 **Premium Channel**: [Join Channel]({plan_link})"
+            buttons.append([InlineKeyboardButton("Join Premium Channel", url=plan_link)])
+        elif channels:
+            channel_links = "\n".join([f"📺 **{c['title']}**: [Join Channel]({c['invite_link']})" for c in channels])
+            for c in channels:
+                buttons.append([InlineKeyboardButton(f"Join {c['title']}", url=c['invite_link'])])
         else:
             channel_links = "📺 **Premium Channel**: (No link configured, contact Admin)"
+            
+    from handlers.user_modules import ADMIN_CONTACT_URL
+    buttons.append([InlineKeyboardButton("👤 Contact Admin", url=ADMIN_CONTACT_URL)])
 
     instruction_msg = (
         "👑 **Premium Subscription Instructions** 👑\n\n"
@@ -76,23 +93,13 @@ async def send_user_instructions(bot, user_id: int, plan_id: int, expiry_date_st
         "To renew your subscription early and stack your validity, use the `/plan` command anytime. Select your plan, make the payment, and upload your screenshot. The bot will automatically extend your active subscription without interruption!"
     )
     
-    buttons = []
-    for c in channels:
-        buttons.append([InlineKeyboardButton(f"Join {c['title']}", url=c['invite_link'])])
-    
-    if not channels:
-        plan_link = db.get_setting(f"plan_link_{plan_id}")
-        if plan_link:
-            buttons.append([InlineKeyboardButton("Join Premium Channel", url=plan_link)])
-            
-    buttons.append([InlineKeyboardButton("👤 Contact Admin", url="https://t.me/aLooser")])
-    
     try:
         await bot.send_message(
             chat_id=user_id,
             text=instruction_msg,
             reply_markup=InlineKeyboardMarkup(buttons),
             parse_mode="Markdown",
+            protect_content=protect,
             disable_web_page_preview=True
         )
     except Exception as e:

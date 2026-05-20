@@ -24,6 +24,7 @@ async def show_config_menu(query):
         InlineKeyboardButton("💬 Customize Welcome Screen (/start)", callback_data="welcome_config_menu"),
         InlineKeyboardButton("📋 Configure Log Channel", callback_data="admin_log_channel"),
         InlineKeyboardButton("⏰ Expiry Notification Settings", callback_data="admin_expiry_notify"),
+        InlineKeyboardButton("🔗 Get Link Delivery Settings", callback_data="get_link_config_menu"),
         InlineKeyboardButton("📺 Premium Channels", callback_data="chan_menu"),
         InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
     ]
@@ -354,3 +355,33 @@ settings_import_conv = ConversationHandler(
     fallbacks=[CommandHandler("cancel", cancel_import), CallbackQueryHandler(cancel_import, pattern="^cancel_import$")],
     per_message=False
 )
+
+async def show_link_delivery_config_menu(query, alert=""):
+    from utils.keyboard_helper import build_grid_keyboard
+    delivery_type = db.get_setting("link_delivery_type", "folder")
+    protect = db.get_setting("restrict_link_sharing", "1")
+    
+    deliv_label = "📺 Individual Links" if delivery_type == "individual" else "📂 Folder/Plan Link"
+    protect_label = "🔒 Restricted (Protected)" if protect == "1" else "🔓 Allowed (Copy/Forward)"
+    
+    text = f"{alert}\n\n" if alert else ""
+    text += (
+        "⚙️ **Get Link Options & Delivery Settings** ⚙️\n\n"
+        "Configure how Premium Invite Links are delivered to users upon activation:\n\n"
+        f"• **Delivery Type**: `{deliv_label}`\n"
+        "   - _Folder/Plan Link_: Sends a single folder/main link where they join all channels.\n"
+        "   - _Individual Links_: Sends a clean set of buttons for each mapped channel.\n\n"
+        f"• **Security (Copy/Forward Restriction)**: `{protect_label}`\n"
+        "   - _Restricted_: Restricts copying, forwarding, and saving media of the link message.\n"
+        "   - _Allowed_: Standard message layout allowing sharing."
+    )
+    
+    buttons = [
+        InlineKeyboardButton(f"🔄 Toggle Delivery (Current: {delivery_type.capitalize()})", callback_data="toggle_link_delivery_type"),
+        InlineKeyboardButton(f"🛡️ Toggle Protection (Current: {'Protected' if protect == '1' else 'Allowed'})", callback_data="toggle_restrict_link_sharing")
+    ]
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    
+    await edit_message_safely(query, text, reply_markup)
+

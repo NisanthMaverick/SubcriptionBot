@@ -14,7 +14,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     lang = user.language_code if user else "en"
 
-    if str(user.id) == str(ADMIN_ID):
+    from handlers.admin_modules.menu import is_admin
+    if is_admin(user.id):
         admin_msg = (
             f"👑 **Welcome back, Admin {user.first_name}!** 👑\n\n"
             "Use your master control panel below to manage subscriptions, plans, payment methods, and database records."

@@ -26,4 +26,24 @@ class Database(UserQueries, SettingQueries, PlanQueries, SubscriptionQueries, Ch
     def _init_db(self):
         pass
 
+    def is_admin_check(self, user_id: int) -> bool:
+        from config import ADMIN_ID
+        if str(user_id) == str(ADMIN_ID):
+            return True
+        import json, time
+        admins_str = self.get_setting("additional_admins", "[]")
+        try:
+            admins = json.loads(admins_str)
+        except Exception:
+            admins = []
+        for admin in admins:
+            if int(admin.get("user_id", 0)) == int(user_id):
+                if admin.get("expiry_type") == "lifetime":
+                    return True
+                elif admin.get("expiry_type") == "month":
+                    if time.time() < admin.get("expiry_timestamp", 0):
+                        return True
+        return False
+
 db = Database()
+

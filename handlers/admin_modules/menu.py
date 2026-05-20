@@ -9,7 +9,8 @@ from utils.keyboard_helper import build_grid_keyboard
 logger = logging.getLogger(__name__)
 
 def is_admin(user_id: int) -> bool:
-    return str(user_id) == str(ADMIN_ID)
+    return db.is_admin_check(user_id)
+
 
 async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     user = update.effective_user
@@ -29,6 +30,10 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await show_main_menu(update)
 
 async def show_main_menu(update: Update):
+    user_id = update.effective_user.id
+    from config import ADMIN_ID
+    is_owner_user = str(user_id) == str(ADMIN_ID)
+
     text = (
         "🛠️ **Master Admin Control Panel** 🛠️\n\n"
         "Select a category below to configure and manage the bot:"
@@ -44,6 +49,9 @@ async def show_main_menu(update: Update):
         InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
         InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean")
     ]
+    if is_owner_user:
+        buttons.append(InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access"))
+
     close_btn = InlineKeyboardButton("❌ Close Panel", callback_data="close_panel")
     reply_markup = build_grid_keyboard(buttons, back_button=close_btn)
 
@@ -123,6 +131,9 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "menu_backup_restore":
         from handlers.admin_modules.config import show_backup_menu
         await show_backup_menu(query)
+    elif data == "menu_admin_access":
+        from handlers.admin_modules.admin_access import show_admin_access_menu
+        await show_admin_access_menu(update, context)
 
     elif data == "welcome_config_menu":
         from handlers.admin_modules.config import show_welcome_config_menu
@@ -131,6 +142,21 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
         db.set_setting("welcome_custom_buttons", "")
         from handlers.admin_modules.config import show_welcome_config_menu
         await show_welcome_config_menu(query, alert="✅ Welcome custom buttons successfully reset.")
+    elif data == "get_link_config_menu":
+        from handlers.admin_modules.config import show_link_delivery_config_menu
+        await show_link_delivery_config_menu(query)
+    elif data == "toggle_link_delivery_type":
+        cur = db.get_setting("link_delivery_type", "folder")
+        new_val = "individual" if cur == "folder" else "folder"
+        db.set_setting("link_delivery_type", new_val)
+        from handlers.admin_modules.config import show_link_delivery_config_menu
+        await show_link_delivery_config_menu(query, alert="✅ Link delivery type updated!")
+    elif data == "toggle_restrict_link_sharing":
+        cur = db.get_setting("restrict_link_sharing", "1")
+        new_val = "0" if cur == "1" else "1"
+        db.set_setting("restrict_link_sharing", new_val)
+        from handlers.admin_modules.config import show_link_delivery_config_menu
+        await show_link_delivery_config_menu(query, alert="✅ Link sharing protection updated!")
     elif data.startswith("ep_resext_"):
         pid = int(data.split("_")[-1])
         db.set_setting(f"link_custom_buttons_{pid}", "")

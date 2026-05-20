@@ -117,6 +117,13 @@ class ChannelQueries(ConnectionManager):
         return []
 
     def check_user_access_to_channel(self, user_id: int, channel_id: int) -> bool:
+        # Check if user is admin (Owner or registered sub-admin)
+        try:
+            if self.is_admin_check(user_id):
+                return True
+        except Exception:
+            pass
+
         # First check if the channel is mapped to any plan at all.
         try:
             row = self._run_read_query_one("SELECT COUNT(*) FROM channel_mappings WHERE channel_id = %s", (channel_id,))
@@ -137,6 +144,17 @@ class ChannelQueries(ConnectionManager):
             
             now = datetime.now()
             for plan_id, expiry_str, status in rows:
+                # If plan_id is 3 (access to all channels)
+                if int(plan_id) == 3:
+                    if expiry_str:
+                        try:
+                            expiry_dt = datetime.strptime(expiry_str, "%d/%m/%Y")
+                            expiry_dt = expiry_dt.replace(hour=23, minute=59, second=59)
+                            if expiry_dt >= now:
+                                return True
+                        except Exception:
+                            pass
+
                 if not expiry_str:
                     continue
                 try:

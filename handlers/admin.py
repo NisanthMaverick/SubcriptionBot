@@ -7,7 +7,8 @@ from handlers.admin_modules import (
     PAY_UPI, PAY_QR, PAY_VALIDITY, LOG_CHAN_ID,
     EDIT_PLAN_TITLE, EDIT_PLAN_DESC, EDIT_PLAN_LINK,
     SUB_REVOKE_REASON, GRANT_USER_ID, GRANT_PLAN, GRANT_DURATION, GRANT_CUSTOM,
-    WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, ADMIN_BROADCAST, ADMIN_ADD_DB
+    WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, ADMIN_BROADCAST, ADMIN_ADD_DB,
+    ADD_ADMIN_ID
 )
 from handlers.admin_modules.menu import (
     admin_start, settings_command, show_main_menu,
@@ -47,6 +48,11 @@ from handlers.admin_modules.cluster import (
 )
 from handlers.admin_modules.channel_mapping import channel_add_conv, channel_nav_handlers
 from handlers.admin_modules.raid import raid_timeout_conv, raid_chan_conv, raid_interval_conv, raid_action_handlers
+from handlers.admin_modules.admin_access import (
+    start_add_admin, receive_admin_id, confirm_add_admin_duration,
+    show_remove_admin_list, remove_admin_action, cancel_admin_access_flow
+)
+
 
 def get_admin_handlers() -> list:
     add_plan_conv = ConversationHandler(
@@ -156,6 +162,12 @@ def get_admin_handlers() -> list:
         fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^menu_db_mgr")]
     )
 
+    admin_access_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_add_admin, pattern="^admin_add_admin_start$")],
+        states={ADD_ADMIN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_admin_id)]},
+        fallbacks=[CommandHandler("cancel", cancel_admin_access_flow), CallbackQueryHandler(cancel_admin_access_flow, pattern="^admin_access_cancel$")]
+    )
+
     return [
         CommandHandler("settings", settings_command),
         add_plan_conv,
@@ -172,19 +184,23 @@ def get_admin_handlers() -> list:
         plan_extbtn_conv,
         broadcast_conv,
         add_db_conv,
+        admin_access_conv,
         channel_add_conv,
         raid_timeout_conv,
         raid_chan_conv,
         raid_interval_conv,
         settings_import_conv,
-        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore)"),
+        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore|menu_admin_access|get_link_config_menu|toggle_link_delivery_type|toggle_restrict_link_sharing)"),
+        CallbackQueryHandler(show_remove_admin_list, pattern="^admin_remove_admin_list$"),
+        CallbackQueryHandler(remove_admin_action, pattern=r"^admin_deladmin_\d+$"),
+        CallbackQueryHandler(confirm_add_admin_duration, pattern="^addadmin_dur_(lifetime|month)$"),
         CallbackQueryHandler(handle_edit_plan_selection, pattern="^edit_plan_"),
         CallbackQueryHandler(expiry_notify_settings, pattern="^admin_expiry_notify$"),
         CallbackQueryHandler(handle_expiry_notify_callbacks, pattern="^set_exp_"),
         CallbackQueryHandler(list_plan_subscribers_callback, pattern="^admin_plan_subs_"),
         CallbackQueryHandler(manage_subscriber_callback, pattern="^admin_manage_sub_"),
         CallbackQueryHandler(download_doc_callback, pattern="^admin_download_doc$"),
-        CallbackQueryHandler(admin_send_link_callback, pattern="^admin_send_link_"),
-        CallbackQueryHandler(admin_send_ind_links_callback, pattern="^admin_send_ind_links_"),
+        CallbackQueryHandler(admin_send_link_callback, pattern="^admin_send_link_\\d+$"),
+        CallbackQueryHandler(admin_send_ind_links_callback, pattern="^admin_send_ind_links_\\d+$"),
         CallbackQueryHandler(export_bot_settings, pattern="^admin_export_settings$")
     ] + channel_nav_handlers + raid_action_handlers

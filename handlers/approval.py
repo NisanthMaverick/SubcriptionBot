@@ -347,18 +347,31 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
     except Exception as e:
         logger.warning(f"Failed to remove Get Link button: {e}")
 
-    plan_link = db.get_setting(f"plan_link_{sub['plan_id']}", "https://t.me/TamilanlinkssSubscription_bot")
+    delivery_type = db.get_setting("link_delivery_type", "folder")
+    protect = db.get_setting("restrict_link_sharing", "1") == "1"
+    channels = db.get_channels_for_plan(sub['plan_id'])
 
-    link_msg_text = (
-        "🚨 **SECURE VIP CHANNEL INVITE** 🚨\n\n"
-        "Use the protected button below to join your premium channel.\n\n"
-        "⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
-        "💬 If you face any issues or are unable to join the channel, please contact Admin via the button below directly."
-    )
-
-    link_buttons = [
-        [InlineKeyboardButton("🔗 Join Premium Channel (Protected)", url=plan_link)]
-    ]
+    if delivery_type == "individual" and channels:
+        link_msg_text = (
+            "🚨 **SECURE VIP CHANNEL INVITES** 🚨\n\n"
+            "Use the protected buttons below to join each premium channel in your plan.\n\n"
+            "⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
+            "💬 If you face any issues, please contact Admin via the button below directly."
+        )
+        link_buttons = []
+        for c in channels:
+            link_buttons.append([InlineKeyboardButton(f"📺 Join {c['title']} (Protected)", url=c['invite_link'])])
+    else:
+        plan_link = db.get_setting(f"plan_link_{sub['plan_id']}", "https://t.me/TamilanlinkssSubscription_bot")
+        link_msg_text = (
+            "🚨 **SECURE VIP CHANNEL INVITE** 🚨\n\n"
+            "Use the protected button below to join your premium channel.\n\n"
+            "⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
+            "💬 If you face any issues or are unable to join the channel, please contact Admin via the button below directly."
+        )
+        link_buttons = [
+            [InlineKeyboardButton("🔗 Join Premium Channel (Protected)", url=plan_link)]
+        ]
 
     import json
     custom_btns_json = db.get_setting(f"link_custom_buttons_{sub['plan_id']}")
@@ -378,7 +391,7 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
             text=link_msg_text,
             reply_markup=InlineKeyboardMarkup(link_buttons),
             parse_mode="Markdown",
-            protect_content=True,
+            protect_content=protect,
             disable_web_page_preview=True
         )
 
