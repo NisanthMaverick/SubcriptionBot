@@ -305,14 +305,17 @@ async def handle_raid_remove_all_action(update: Update, context: ContextTypes.DE
     
     await handle_raid_user_list(update, context)
 
-async def handle_raid_user_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_raid_user_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, override_user_id: int = None) -> None:
     query = update.callback_query
     try:
         await query.answer()
     except Exception:
         pass
     
-    user_id = int(query.data.split("_")[-1])
+    if override_user_id is not None:
+        user_id = override_user_id
+    else:
+        user_id = int(query.data.split("_")[-1])
     
     import json
     data_str = db.get_setting("temp_unauthorized_users", "[]")
@@ -330,8 +333,9 @@ async def handle_raid_user_menu(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
         
-    first_name = user_entries[0]["first_name"]
-    username = user_entries[0]["username"]
+    from utils.formatters import clean_username
+    first_name = clean_username(user_entries[0]["first_name"])
+    username = clean_username(user_entries[0]["username"])
     
     details = (
         f"👤 **User**: {first_name} (ID: `{user_id}`)\n"
@@ -481,8 +485,7 @@ async def handle_raid_remuser_all(update: Update, context: ContextTypes.DEFAULT_
     else:
         await query.answer(f"✅ Successfully removed from {success_count} channels!")
         
-    query.data = f"raid_user_{user_id}"
-    await handle_raid_user_menu(update, context)
+    await handle_raid_user_menu(update, context, override_user_id=user_id)
 
 async def handle_raid_remuser_chan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -523,8 +526,7 @@ async def handle_raid_remuser_chan(update: Update, context: ContextTypes.DEFAULT
         
     db.set_setting("temp_unauthorized_users", json.dumps(unauthorized))
     
-    query.data = f"raid_user_{user_id}"
-    await handle_raid_user_menu(update, context)
+    await handle_raid_user_menu(update, context, override_user_id=user_id)
 
 async def handle_raid_manage_in_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
