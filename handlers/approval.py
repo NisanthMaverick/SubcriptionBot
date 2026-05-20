@@ -135,14 +135,6 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                 except Exception as e:
                     logger.error(f"Failed to send activated card to user: {e}")
 
-                await send_user_instructions(
-                    bot=context.bot,
-                    user_id=updated_sub["user_id"],
-                    plan_id=updated_sub["plan_id"],
-                    expiry_date_str=updated_sub["expiry_date"],
-                    duration_str=updated_sub["duration"],
-                    plan_name=updated_sub["plan_name"]
-                )
                 return
 
             else:
@@ -233,14 +225,6 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
                 except Exception as e:
                     logger.error(f"Failed to send activated card to user: {e}")
 
-                await send_user_instructions(
-                    bot=context.bot,
-                    user_id=updated_sub["user_id"],
-                    plan_id=updated_sub["plan_id"],
-                    expiry_date_str=updated_sub["expiry_date"],
-                    duration_str=updated_sub["duration"],
-                    plan_name=updated_sub["plan_name"]
-                )
                 return
 
         # Fallback / Default new subscription flow
@@ -318,15 +302,6 @@ async def handle_approval_callback(update: Update, context: ContextTypes.DEFAULT
             )
         except Exception as e:
             logger.error(f"Failed to send activated card to user {updated_sub['user_id']}: {e}")
-
-        await send_user_instructions(
-            bot=context.bot,
-            user_id=updated_sub["user_id"],
-            plan_id=updated_sub["plan_id"],
-            expiry_date_str=updated_sub["expiry_date"],
-            duration_str=updated_sub["duration"],
-            plan_name=updated_sub["plan_name"]
-        )
 
     elif action == "decline":
         db.update_subscription_status(sub_id, status="Declined", notes=f"Declined by {admin_name}")

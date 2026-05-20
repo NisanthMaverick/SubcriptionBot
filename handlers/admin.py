@@ -28,7 +28,8 @@ from handlers.admin_modules.payment import (
 )
 from handlers.admin_modules.subs_manage import (
     start_revoke_sub, receive_revoke_reason, list_plan_subscribers_callback,
-    manage_subscriber_callback, download_doc_callback, admin_send_link_callback
+    manage_subscriber_callback, download_doc_callback, admin_send_link_callback,
+    admin_send_ind_links_callback
 )
 from handlers.admin_modules.subs_grant import (
     grant_start, receive_grant_user_id, handle_grant_plan,
@@ -184,5 +185,6 @@ def get_admin_handlers() -> list:
         CallbackQueryHandler(manage_subscriber_callback, pattern="^admin_manage_sub_"),
         CallbackQueryHandler(download_doc_callback, pattern="^admin_download_doc$"),
         CallbackQueryHandler(admin_send_link_callback, pattern="^admin_send_link_"),
+        CallbackQueryHandler(admin_send_ind_links_callback, pattern="^admin_send_ind_links_"),
         CallbackQueryHandler(export_bot_settings, pattern="^admin_export_settings$")
     ] + channel_nav_handlers + raid_action_handlers

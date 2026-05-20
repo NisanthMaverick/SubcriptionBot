@@ -175,10 +175,17 @@ async def manage_subscriber_callback(update: Update, context: ContextTypes.DEFAU
 
     details_text = build_premium_user_details(sub)
     keyboard = [
-        [InlineKeyboardButton("🔗 Send Channel Link", callback_data=f"admin_send_link_{sub_id}"),
-         InlineKeyboardButton("🚫 Revoke Access & Remove", callback_data=f"sub_rem_{sub_id}")],
-        [InlineKeyboardButton("🔙 Back to Subscribers List", callback_data=f"admin_plan_subs_{sub['plan_id']}")],
-        [InlineKeyboardButton("🔙 Subscriber Management Menu", callback_data="menu_subs")]
+        [
+            InlineKeyboardButton("🔗 Send Plan Link", callback_data=f"admin_send_link_{sub_id}"),
+            InlineKeyboardButton("📺 Send Indiv. Links", callback_data=f"admin_send_ind_links_{sub_id}")
+        ],
+        [
+            InlineKeyboardButton("🚫 Revoke Access & Remove", callback_data=f"sub_rem_{sub_id}")
+        ],
+        [
+            InlineKeyboardButton("🔙 Back to Subscribers List", callback_data=f"admin_plan_subs_{sub['plan_id']}"),
+            InlineKeyboardButton("🔙 Management Menu", callback_data="menu_subs")
+        ]
     ]
     await query.edit_message_text(f"🛠️ **Subscriber Control Panel**\n\n{details_text}", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
 
@@ -254,4 +261,46 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
     except Exception as e:
         logger.error(f"Failed to send secure join link to user: {e}")
         await query.message.reply_text(f"❌ Failed to send link to user. They might have blocked the bot.", disable_web_page_preview=True)
+
+async def admin_send_ind_links_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    sub_id = int(query.data.split("_")[-1])
+    sub = db.get_subscription(sub_id)
+    if not sub:
+        await query.message.reply_text("❌ Subscription record not found.", disable_web_page_preview=True)
+        return
+
+    channels = db.get_channels_for_plan(sub["plan_id"])
+    if not channels:
+        await query.message.reply_text("⚠️ No individual channels configured/mapped for this plan.", disable_web_page_preview=True)
+        return
+
+    msg_text = (
+        "💎 **INDIVIDUAL VIP CHANNEL ACCESS** 💎\n\n"
+        "The Administrator has dispatched individual invite links for each channel included in your plan.\n\n"
+        "👇 **Click the buttons below to join each channel**:\n\n"
+        "💬 *If you experience any difficulties or have questions, contact the Admin directly.*"
+    )
+
+    link_buttons = []
+    for c in channels:
+        link_buttons.append([InlineKeyboardButton(f"📺 Join {c['title']}", url=c['invite_link'])])
+
+    link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
+
+    try:
+        await context.bot.send_message(
+            chat_id=sub["user_id"],
+            text=msg_text,
+            reply_markup=InlineKeyboardMarkup(link_buttons),
+            parse_mode="Markdown",
+            protect_content=True,
+            disable_web_page_preview=True
+        )
+        await query.message.reply_text(f"✅ Individual invite links successfully sent to user `{sub['user_id']}` (restricted and secure)!", disable_web_page_preview=True)
+    except Exception as e:
+        logger.error(f"Failed to send individual links to user: {e}")
+        await query.message.reply_text(f"❌ Failed to send links to user. They might have blocked the bot.", disable_web_page_preview=True)
 

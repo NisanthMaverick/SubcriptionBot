@@ -43,32 +43,33 @@ def calculate_expiry_date(start_date_str: str, duration_str: str) -> str:
 
 def build_premium_user_details(sub: dict) -> str:
     """
-    Builds the Premium User Details card matching exactly the required template.
+    Builds a beautifully spaced, clean Premium User Details card.
     """
-    status_emoji = "✅ Paid" if sub.get("status") == "Paid" else ("❌ Pending" if sub.get("status") == "Pending" else f"❌ {sub.get('status')}")
+    status_emoji = "✅ Active" if sub.get("status") in ["Paid", "Granted"] else f"⚠️ {sub.get('status')}"
     notes = sub.get("notes") or "N/A"
     start_date = sub.get("start_date") or "N/A"
     expiry_date = sub.get("expiry_date") or "N/A"
 
     template = (
-        "💎 PREMIUM USER DETAILS 💎\n"
-        "──────────────────────────\n"
-        "User details:\n"
-        f"👤 User Name    : {sub.get('username', 'Unknown')}\n"
-        f"🆔 User ID      : {sub.get('user_id', '')}\n"
-        f"🔗 Profile Link : {sub.get('profile_link', 'N/A')}\n\n"
-        "Plan details:\n"
-        f"📦 Selected Plan  : {sub.get('plan_name', '')}\n"
-        f"🆔 Plan ID        : {sub.get('plan_id', '')}\n"
-        f"⏱ Plan Duration  : {sub.get('duration', '')}\n"
-        f"📅 Start Date     : {start_date}\n"
-        f"📅 Expiry Date    : {expiry_date}\n\n"
-        "Payment details:\n"
-        f"💰 Total Amount Paid : {sub.get('amount', '')}\n"
-        f"💵 Payment Status    : {status_emoji}\n"
-        f"📝 Notes             : {notes}\n"
-        "──────────────────────────\n"
-        "⚡ Premium activated successfully 🚀"
+        "💎 **VIP SUBSCRIBER ACCESS CARD** 💎\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "👤 **USER INFORMATION**\n"
+        f"  • **Name**: {sub.get('username', 'Unknown')}\n"
+        f"  • **User ID**: `{sub.get('user_id', '')}`\n"
+        f"  • **Profile**: [Open Chat]({sub.get('profile_link', 'https://t.me')})\n\n"
+        "📦 **PLAN CONFIGURATION**\n"
+        f"  • **Selected Plan**: {sub.get('plan_name', '')}\n"
+        f"  • **Plan ID**: `{sub.get('plan_id', '')}`\n"
+        f"  • **Duration**: {sub.get('duration', '')}\n\n"
+        "📅 **VALIDITY PERIOD**\n"
+        f"  • **Start Date**: `{start_date}`\n"
+        f"  • **Expiry Date**: `{expiry_date}`\n\n"
+        "💵 **PAYMENT SUMMARY**\n"
+        f"  • **Total Amount**: `{sub.get('amount', '')}`\n"
+        f"  • **Status**: {status_emoji}\n"
+        f"  • **Notes**: *{notes}*\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ *Manage subscriber invite links below:* 🚀"
     )
     return template
 
