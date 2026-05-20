@@ -49,7 +49,7 @@ from handlers.admin_modules.cluster import (
 from handlers.admin_modules.channel_mapping import channel_add_conv, channel_nav_handlers
 from handlers.admin_modules.raid import raid_timeout_conv, raid_chan_conv, raid_interval_conv, raid_action_handlers
 from handlers.admin_modules.admin_access import (
-    start_add_admin, receive_admin_id, confirm_add_admin_duration,
+    start_add_admin, receive_admin_id, confirm_add_admin_role, confirm_add_admin_duration,
     show_remove_admin_list, remove_admin_action, cancel_admin_access_flow
 )
 
@@ -193,6 +193,7 @@ def get_admin_handlers() -> list:
         CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore|menu_admin_access|get_link_config_menu|toggle_link_delivery_type|toggle_restrict_link_sharing)"),
         CallbackQueryHandler(show_remove_admin_list, pattern="^admin_remove_admin_list$"),
         CallbackQueryHandler(remove_admin_action, pattern=r"^admin_deladmin_\d+$"),
+        CallbackQueryHandler(confirm_add_admin_role, pattern="^addadmin_role_(sub_admin|super_admin)$"),
         CallbackQueryHandler(confirm_add_admin_duration, pattern="^addadmin_dur_(lifetime|month)$"),
         CallbackQueryHandler(handle_edit_plan_selection, pattern="^edit_plan_"),
         CallbackQueryHandler(expiry_notify_settings, pattern="^admin_expiry_notify$"),

@@ -31,26 +31,44 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def show_main_menu(update: Update):
     user_id = update.effective_user.id
-    from config import ADMIN_ID
-    is_owner_user = str(user_id) == str(ADMIN_ID)
+    role = db.get_admin_role(user_id)
 
     text = (
         "🛠️ **Master Admin Control Panel** 🛠️\n\n"
         "Select a category below to configure and manage the bot:"
     )
-    buttons = [
-        InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
-        InlineKeyboardButton("💳 Payment Settings", callback_data="menu_payment"),
-        InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
-        InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
-        InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
-        InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
-        InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore"),
-        InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
-        InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean")
-    ]
-    if is_owner_user:
-        buttons.append(InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access"))
+    
+    buttons = []
+    
+    if role == "sub_admin":
+        buttons = [
+            InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
+        ]
+        text = "🛡️ **Sub-Admin Control Panel** 🛡️\n\nManage channel protection:"
+    elif role == "super_admin":
+        buttons = [
+            InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
+            InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
+            InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
+            InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
+            InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
+            InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore"),
+            InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
+            InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
+        ]
+    elif role == "owner":
+        buttons = [
+            InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
+            InlineKeyboardButton("💳 Payment Settings", callback_data="menu_payment"),
+            InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
+            InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
+            InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
+            InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
+            InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore"),
+            InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
+            InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean"),
+            InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access")
+        ]
 
     close_btn = InlineKeyboardButton("❌ Close Panel", callback_data="close_panel")
     reply_markup = build_grid_keyboard(buttons, back_button=close_btn)
@@ -82,6 +100,16 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = query.from_user.id
+    role = db.get_admin_role(user_id)
+    
+    if role == "sub_admin" and not data.startswith("raid_") and data not in ["menu_main", "close_panel"]:
+        await query.edit_message_text("⛔ Access denied. You only have access to Raid Channel Protection.")
+        return
+        
+    if role == "super_admin" and data in ["menu_payment", "menu_db_clean", "menu_admin_access", "reset_upi_ids"] or data.startswith("admin_deladmin_"):
+        await query.edit_message_text("⛔ Access denied. You do not have permission for this action.")
+        return
 
     if data == "menu_main":
         await show_main_menu(update)

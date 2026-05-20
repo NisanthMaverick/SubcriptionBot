@@ -498,7 +498,7 @@ async def handle_raid_remuser_chan(update: Update, context: ContextTypes.DEFAULT
     # Set removed flag outside the try block so it always runs on success
     if removed_ok:
         for u in unauthorized:
-            if u["user_id"] == user_id and u["channel_id"] == channel_id:
+            if str(u.get("user_id", "")) == str(user_id) and str(u.get("channel_id", "")) == str(channel_id):
                 u["removed"] = True
         
     db.set_setting("temp_unauthorized_users", json.dumps(unauthorized))

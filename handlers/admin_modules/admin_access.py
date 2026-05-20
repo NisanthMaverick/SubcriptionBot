@@ -129,15 +129,17 @@ async def receive_admin_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     context.user_data["new_admin_name"] = first_name
     context.user_data["new_admin_username"] = username
 
-    # Show duration selection
+    # Show role selection
     text = (
         f"👤 **User selected**: {first_name} (ID: `{new_admin_id}`)\n\n"
-        f"Select the admin access duration/type for this user:"
+        f"Select the role for this user:\n\n"
+        f"👮 **Sub Admin**: Only has access to Raid Channel Protection\n"
+        f"🦸‍♂️ **Super Admin**: Has access to all settings except Database Reset and Payments"
     )
     
     buttons = [
-        [InlineKeyboardButton("♾️ Lifetime (Unlimited Access)", callback_data=f"addadmin_dur_lifetime")],
-        [InlineKeyboardButton("🗓️ 1 Month (30 Days)", callback_data=f"addadmin_dur_month")],
+        [InlineKeyboardButton("👮 Sub Admin", callback_data=f"addadmin_role_sub_admin")],
+        [InlineKeyboardButton("🦸‍♂️ Super Admin", callback_data=f"addadmin_role_super_admin")],
         [InlineKeyboardButton("❌ Cancel", callback_data="menu_admin_access")]
     ]
     
@@ -148,6 +150,39 @@ async def receive_admin_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         parse_mode="Markdown"
     )
     return ConversationHandler.END
+
+async def confirm_add_admin_role(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    
+    new_admin_id = context.user_data.get("new_admin_id")
+    if not new_admin_id:
+        await query.edit_message_text("❌ Session expired. Please try again.")
+        return
+        
+    role = query.data.split("_role_")[-1]  # "sub_admin" or "super_admin"
+    context.user_data["new_admin_role"] = role
+    
+    first_name = context.user_data.get("new_admin_name", "Sub Admin")
+    
+    role_name = "Super Admin" if role == "super_admin" else "Sub Admin"
+    text = (
+        f"👤 **User**: {first_name} (ID: `{new_admin_id}`)\n"
+        f"🛡️ **Role**: {role_name}\n\n"
+        f"Select the admin access duration:"
+    )
+    
+    buttons = [
+        [InlineKeyboardButton("♾️ Lifetime (Unlimited Access)", callback_data=f"addadmin_dur_lifetime")],
+        [InlineKeyboardButton("🗓️ 1 Month (30 Days)", callback_data=f"addadmin_dur_month")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="menu_admin_access")]
+    ]
+    
+    await query.edit_message_text(
+        text=text,
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown"
+    )
 
 async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -160,6 +195,7 @@ async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAU
         
     first_name = context.user_data.get("new_admin_name", "Sub Admin")
     username = context.user_data.get("new_admin_username", "")
+    role = context.user_data.get("new_admin_role", "super_admin")
     
     dur_type = query.data.split("_")[-1]  # "lifetime" or "month"
     
@@ -176,6 +212,7 @@ async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAU
         "user_id": new_admin_id,
         "first_name": first_name,
         "username": username,
+        "role": role,
         "expiry_type": dur_type,
         "expiry_timestamp": time.time() + 30 * 24 * 3600 if dur_type == "month" else 0
     }
@@ -183,14 +220,20 @@ async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAU
     db.set_setting("additional_admins", json.dumps(admins))
     
     dur_desc = "Lifetime" if dur_type == "lifetime" else "1 Month (30 Days)"
+    role_name = "Super Admin" if role == "super_admin" else "Sub Admin"
     
     text = (
-        f"✅ **Sub-Admin Added Successfully!**\n\n"
+        f"✅ **{role_name} Added Successfully!**\n\n"
         f"👤 **Name**: {first_name}\n"
         f"🆔 **ID**: `{new_admin_id}`\n"
+        f"🛡️ **Role**: {role_name}\n"
         f"🕒 **Duration**: {dur_desc}\n\n"
-        f"This user now has full administrative rights and access to all channels."
     )
+    
+    if role == "super_admin":
+        text += "This user now has access to all settings except Database Reset and Payments."
+    else:
+        text += "This user now only has access to Raid Channel Protection."
     
     back_btn = InlineKeyboardButton("🔙 Back to Admin Access", callback_data="menu_admin_access")
     reply_markup = build_grid_keyboard([], back_button=back_btn)
@@ -199,15 +242,24 @@ async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAU
     
     # Notify the promoted user
     try:
-        user_notify = (
-            "🎉 **You have been promoted to Sub-Admin!** 🎉\n\n"
-            f"🕒 **Access Duration**: {dur_desc}\n\n"
-            "You now have full management rights including:\n"
-            "• 👥 User & subscriber management\n"
-            "• 🛡️ Raid protection controls\n"
-            "• 📺 Access to all premium channels\n\n"
-            "⚡ Use /start to access the admin panel."
-        )
+        if role == "super_admin":
+            user_notify = (
+                f"🎉 **You have been promoted to {role_name}!** 🎉\n\n"
+                f"🕒 **Access Duration**: {dur_desc}\n\n"
+                "You now have management rights including:\n"
+                "• 👥 User & subscriber management\n"
+                "• 🛡️ Raid protection controls\n"
+                "• 📺 Access to premium channels\n\n"
+                "⚡ Use /settings to access the admin panel."
+            )
+        else:
+            user_notify = (
+                f"🎉 **You have been promoted to {role_name}!** 🎉\n\n"
+                f"🕒 **Access Duration**: {dur_desc}\n\n"
+                "You now have access to:\n"
+                "• 🛡️ Raid protection controls\n\n"
+                "⚡ Use /settings to access the admin panel."
+            )
         await context.bot.send_message(chat_id=new_admin_id, text=user_notify, parse_mode="Markdown")
     except Exception as e:
         logger.warning(f"Could not notify new admin {new_admin_id}: {e}")
@@ -218,7 +270,7 @@ async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAU
         try:
             log_text = (
                 "🔑 **Admin Access Update** 🔑\n\n"
-                f"✅ **Action**: Promoted to Sub-Admin\n"
+                f"✅ **Action**: Promoted to {role_name}\n"
                 f"👤 **User**: {first_name} (@{username})\n"
                 f"🆔 **User ID**: `{new_admin_id}`\n"
                 f"🕒 **Duration**: {dur_desc}\n"

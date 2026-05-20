@@ -26,10 +26,10 @@ class Database(UserQueries, SettingQueries, PlanQueries, SubscriptionQueries, Ch
     def _init_db(self):
         pass
 
-    def is_admin_check(self, user_id: int) -> bool:
+    def get_admin_role(self, user_id: int) -> str:
         from config import ADMIN_ID
         if str(user_id) == str(ADMIN_ID):
-            return True
+            return "owner"
         import json, time
         admins_str = self.get_setting("additional_admins", "[]")
         try:
@@ -38,12 +38,12 @@ class Database(UserQueries, SettingQueries, PlanQueries, SubscriptionQueries, Ch
             admins = []
         for admin in admins:
             if int(admin.get("user_id", 0)) == int(user_id):
-                if admin.get("expiry_type") == "lifetime":
-                    return True
-                elif admin.get("expiry_type") == "month":
-                    if time.time() < admin.get("expiry_timestamp", 0):
-                        return True
-        return False
+                if admin.get("expiry_type") == "lifetime" or (admin.get("expiry_type") == "month" and time.time() < admin.get("expiry_timestamp", 0)):
+                    return admin.get("role", "super_admin") # default for old admins
+        return None
+
+    def is_admin_check(self, user_id: int) -> bool:
+        return bool(self.get_admin_role(user_id))
 
 db = Database()
 
