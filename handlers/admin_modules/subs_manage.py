@@ -13,6 +13,7 @@ import json
 logger = logging.getLogger(__name__)
 
 async def show_subs_menu(query):
+    from utils.keyboard_helper import build_grid_keyboard
     count = db.count_subscriptions()
     plans = db.get_all_plans()
     text = (
@@ -20,34 +21,40 @@ async def show_subs_menu(query):
         f"Total Subscriptions in DB: **{count}**\n\n"
         "Select a subscription plan below to view and manage its active subscribers:"
     )
-    keyboard = []
+    buttons = []
     for p in plans:
         clean_name = p['name'].split('\n')[0][:40]
-        keyboard.append([InlineKeyboardButton(f"📦 {clean_name}", callback_data=f"admin_plan_subs_{p['plan_id']}")])
+        buttons.append(InlineKeyboardButton(f"📦 {clean_name}", callback_data=f"admin_plan_subs_{p['plan_id']}"))
 
-    keyboard.append([InlineKeyboardButton("🌐 View All Subscribers (All Plans)", callback_data="admin_plan_subs_0")])
-    keyboard.append([InlineKeyboardButton("➕ Manually Grant VIP Access / Add User", callback_data="grant_start")])
-    keyboard.append([InlineKeyboardButton("📥 Download Subscribers (.doc)", callback_data="admin_download_doc")])
-    keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+    buttons.append(InlineKeyboardButton("🌐 View All", callback_data="admin_plan_subs_0"))
+    buttons.append(InlineKeyboardButton("➕ Manually Grant Access", callback_data="grant_start"))
+    buttons.append(InlineKeyboardButton("📥 Download Report", callback_data="admin_download_doc"))
+
+    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
 
 async def start_revoke_sub(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     sub_id = int(query.data.split("_")[-1])
     sub = db.get_subscription(sub_id)
     if not sub:
-        await query.edit_message_text("❌ Record not found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Menu", callback_data="menu_subs")]]), disable_web_page_preview=True)
+        back_btn = InlineKeyboardButton("🔙 Menu", callback_data="menu_subs")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text("❌ Record not found.", reply_markup=reply_markup, disable_web_page_preview=True)
         return ConversationHandler.END
 
     context.user_data["action_sub"] = sub
-    keyboard = [[InlineKeyboardButton("❌ Cancel / Back", callback_data=f"admin_manage_sub_{sub_id}")]]
+    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data=f"admin_manage_sub_{sub_id}")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await query.edit_message_text(
         f"🗑️ **Revoking & Deleting Subscription #{sub_id} ({sub['username']})**\n\n"
         "Please send the reason or confirmation notes for terminating this user's premium access and removing their record from the database\n"
         "(e.g., `Subscription expired / Terms violation`):\n\n"
         "Type /cancel to abort.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
@@ -56,6 +63,7 @@ async def start_revoke_sub(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return SUB_REVOKE_REASON
 
 async def receive_revoke_reason(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     reason = update.message.text.strip()
     sub = context.user_data["action_sub"]
     sub_id = sub["sub_id"]
@@ -109,11 +117,12 @@ async def receive_revoke_reason(update: Update, context: ContextTypes.DEFAULT_TY
 
     db.delete_subscription(sub_id)
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")]]
+    back_btn = InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await context.bot.send_message(
         chat_id=update.message.chat_id,
         text=f"✅ **Subscription record #{sub_id} successfully revoked & deleted from the database.**\n\n{notify_status}",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
@@ -121,6 +130,7 @@ async def receive_revoke_reason(update: Update, context: ContextTypes.DEFAULT_TY
     return ConversationHandler.END
 
 async def list_plan_subscribers_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     plan_id = int(query.data.split("_")[-1])
@@ -134,19 +144,21 @@ async def list_plan_subscribers_callback(update: Update, context: ContextTypes.D
         plan_title = plan['name'].split('\n')[0] if plan else f"Plan #{plan_id}"
 
     if not subs:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")]]
-        await query.edit_message_text(f"👥 **{plan_title}**\n\n📭 There are currently no subscribers for this plan.", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+        back_btn = InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text(f"👥 **{plan_title}**\n\n📭 There are currently no subscribers for this plan.", reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
         return
 
     text = f"👥 **Subscribers for: {plan_title}** (Total: {len(subs)})\n\nClick a subscriber below to view and manage their access details:"
-    keyboard = []
+    buttons = []
     for s in subs:
         status_icon = "👑" if s['status'] == "Granted" else ("✅" if s['status'] == "Paid" else "❌")
         user_display = f"{status_icon} {clean_username(s['username'])} (ID: {s['user_id']})"[:45]
-        keyboard.append([InlineKeyboardButton(user_display, callback_data=f"admin_manage_sub_{s['sub_id']}")])
+        buttons.append(InlineKeyboardButton(user_display, callback_data=f"admin_manage_sub_{s['sub_id']}"))
 
-    keyboard.append([InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")])
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+    back_btn = InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
 
 async def manage_subscriber_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -155,14 +167,16 @@ async def manage_subscriber_callback(update: Update, context: ContextTypes.DEFAU
     sub = db.get_subscription(sub_id)
 
     if not sub:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")]]
-        await query.edit_message_text("❌ Subscription record not found.", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+        from utils.keyboard_helper import build_grid_keyboard
+        back_btn = InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text("❌ Subscription record not found.", reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
         return
 
     details_text = build_premium_user_details(sub)
     keyboard = [
-        [InlineKeyboardButton("🔗 Send Channel Link", callback_data=f"admin_send_link_{sub_id}")],
-        [InlineKeyboardButton("🚫 Revoke Access & Remove from DB", callback_data=f"sub_rem_{sub_id}")],
+        [InlineKeyboardButton("🔗 Send Channel Link", callback_data=f"admin_send_link_{sub_id}"),
+         InlineKeyboardButton("🚫 Revoke Access & Remove", callback_data=f"sub_rem_{sub_id}")],
         [InlineKeyboardButton("🔙 Back to Subscribers List", callback_data=f"admin_plan_subs_{sub['plan_id']}")],
         [InlineKeyboardButton("🔙 Subscriber Management Menu", callback_data="menu_subs")]
     ]

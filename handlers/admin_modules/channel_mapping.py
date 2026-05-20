@@ -2,6 +2,7 @@ import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from database import db
+from utils.keyboard_helper import build_grid_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -45,19 +46,21 @@ async def show_channels_menu(query) -> None:
             text += f"{idx}️⃣ **{c['title']}**\n   ├ 🆔 `{c['channel_id']}`\n   └ 📦 Plans: `{plan_str}`\n\n"
     text += "━━━━━━━━━━━━━━━━━━━━"
 
-    keyboard = [
-        [InlineKeyboardButton("➕ Add Premium Channel", callback_data="chan_add"),
-         InlineKeyboardButton("🔗 Map Channel to Plan", callback_data="chan_map_start")],
-        [InlineKeyboardButton("🔍 Verify Channels & Links", callback_data="chan_verify_all")],
-        [InlineKeyboardButton("❌ Remove Channel", callback_data="chan_del_list"),
-         InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")]
+    buttons = [
+        InlineKeyboardButton("➕ Add Premium Channel", callback_data="chan_add"),
+        InlineKeyboardButton("🔗 Map Channel to Plan", callback_data="chan_map_start"),
+        InlineKeyboardButton("🔍 Verify Channels & Links", callback_data="chan_verify_all"),
+        InlineKeyboardButton("❌ Remove Channel", callback_data="chan_del_list")
     ]
-    await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, text, reply_markup)
 
 async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
-    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="chan_cancel")]]
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="chan_cancel")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await edit_message_safely(
         query,
         "➕ **Add Premium Channel**\n\n"
@@ -66,7 +69,7 @@ async def start_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "   • **Forward a message** from that channel here.\n"
         "   • Or send the **Channel ID** (e.g. `-1003564494376`).\n\n"
         "Type /cancel to abort.",
-        InlineKeyboardMarkup(keyboard)
+        reply_markup
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
@@ -91,9 +94,10 @@ async def receive_channel_input(update: Update, context: ContextTypes.DEFAULT_TY
         try: channel_id = int(update.message.text.strip())
         except (ValueError, AttributeError): pass
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")]]
+    back_btn = InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     if not channel_id:
-        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ **Invalid Input.** Forward a message or send a channel ID.", reply_markup=InlineKeyboardMarkup(keyboard))
+        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ **Invalid Input.** Forward a message or send a channel ID.", reply_markup=reply_markup)
         return ConversationHandler.END
 
     try:
@@ -110,12 +114,12 @@ async def receive_channel_input(update: Update, context: ContextTypes.DEFAULT_TY
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text=f"✅ **Channel Added!**\n\n📺 **Title**: {title}\n🆔 **ID**: `{channel_id}`\n🔗 **Link**: {invite_link}",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown",
             disable_web_page_preview=True
         )
     except Exception as e:
-        await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ **Failed to verify/add channel:**\n\n`{e}`", reply_markup=InlineKeyboardMarkup(keyboard))
+        await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ **Failed to verify/add channel:**\n\n`{e}`", reply_markup=reply_markup)
 
     context.user_data.clear()
     return ConversationHandler.END
@@ -125,11 +129,14 @@ async def start_map_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await query.answer()
     plans = db.get_all_plans()
     if not plans:
-        await edit_message_safely(query, "⚠️ No plans available.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
+        back_btn = InlineKeyboardButton("🔙 Back", callback_data="chan_menu")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await edit_message_safely(query, "⚠️ No plans available.", reply_markup)
         return
-    keyboard = [[InlineKeyboardButton(f"📦 {p['name'].split('\n')[0][:40]}", callback_data=f"chan_map_select_{p['plan_id']}")] for p in plans]
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="chan_menu")])
-    await edit_message_safely(query, "🔗 **Map Channels to Plan**\n\nSelect a Subscription Plan to manage its channel access:", InlineKeyboardMarkup(keyboard))
+    buttons = [InlineKeyboardButton(f"📦 {p['name'].split('\n')[0][:40]}", callback_data=f"chan_map_select_{p['plan_id']}") for p in plans]
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="chan_menu")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, "🔗 **Map Channels to Plan**\n\nSelect a Subscription Plan to manage its channel access:", reply_markup)
 
 async def select_channel_for_mapping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -140,7 +147,9 @@ async def select_channel_for_mapping(update: Update, context: ContextTypes.DEFAU
 async def show_plan_channel_toggles(query, plan_id: int) -> None:
     plan = db.get_plan(plan_id)
     if not plan:
-        await edit_message_safely(query, "❌ Plan not found.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
+        back_btn = InlineKeyboardButton("🔙 Back", callback_data="chan_menu")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await edit_message_safely(query, "❌ Plan not found.", reply_markup)
         return
 
     channels = db.get_all_premium_channels()
@@ -148,11 +157,10 @@ async def show_plan_channel_toggles(query, plan_id: int) -> None:
     mapped_channel_ids = {c["channel_id"] for c in mapped_channels}
 
     keyboard = []
-    for c in channels:
-        is_mapped = c["channel_id"] in mapped_channel_ids
-        status_icon = "✅" if is_mapped else "🔳"
-        clean_name = c["title"][:40]
-        keyboard.append([InlineKeyboardButton(f"{status_icon} {clean_name}", callback_data=f"chan_toggle_{plan_id}_{c['channel_id']}")])
+    main_buttons = [InlineKeyboardButton(f"{status_icon} {c['title'][:40]}", callback_data=f"chan_toggle_{plan_id}_{c['channel_id']}") for c in channels for status_icon in ["✅" if c["channel_id"] in mapped_channel_ids else "🔳"]]
+
+    for i in range(0, len(main_buttons), 2):
+        keyboard.append(main_buttons[i:i+2])
 
     # Select All / Deselect All Row
     keyboard.append([
@@ -209,11 +217,14 @@ async def list_channels_to_delete(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
     channels = db.get_all_premium_channels()
     if not channels:
-        await edit_message_safely(query, "⚠️ No channels to delete.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
+        back_btn = InlineKeyboardButton("🔙 Back", callback_data="chan_menu")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await edit_message_safely(query, "⚠️ No channels to delete.", reply_markup)
         return
-    keyboard = [[InlineKeyboardButton(f"🗑️ Delete: {c['title']}", callback_data=f"chan_del_confirm_{c['channel_id']}")] for c in channels]
-    keyboard.append([InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")])
-    await edit_message_safely(query, "❌ **Remove Premium Channel**\n\nWarning: Removing a channel will delete its plan mappings.", InlineKeyboardMarkup(keyboard))
+    buttons = [InlineKeyboardButton(f"🗑️ Delete: {c['title']}", callback_data=f"chan_del_confirm_{c['channel_id']}") for c in channels]
+    back_btn = InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, "❌ **Remove Premium Channel**\n\nWarning: Removing a channel will delete its plan mappings.", reply_markup)
 
 async def confirm_delete_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -223,15 +234,19 @@ async def confirm_delete_channel(update: Update, context: ContextTypes.DEFAULT_T
     msg = f"✅ Channel **{channel['title']}** removed." if channel else "❌ Channel not found."
     if channel:
         db.delete_premium_channel(channel_id)
-    keyboard = [[InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")]]
-    await edit_message_safely(query, msg, InlineKeyboardMarkup(keyboard))
+    back_btn = InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    await edit_message_safely(query, msg, reply_markup)
 
 async def verify_all_channels_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     channels = db.get_all_premium_channels()
     if not channels:
-        await edit_message_safely(query, "⚠️ No premium channels registered.", InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="chan_menu")]]))
+        back_btn = InlineKeyboardButton("🔙 Back", callback_data="chan_menu")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await edit_message_safely(query, "⚠️ No premium channels registered.", reply_markup)
         return
 
     total = len(channels)
@@ -268,10 +283,9 @@ async def verify_all_channels_status(update: Update, context: ContextTypes.DEFAU
         report_lines.append(f"{idx}️⃣ {status_icon} **{title}**\n   ├ 🆔 `{chan_id}`\n   ├ Status: `{status_text}`\n   ├ Perms: `{permissions_text}`\n   └ Link: {link_status}")
 
     report_text = "📋 **Channel Status & Permissions Report** 📋\n\n━━━━━━━━━━━━━━━━━━━━\n" + "\n\n".join(report_lines) + "\n━━━━━━━━━━━━━━━━━━━━"
-    keyboard = [
-        [InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")]
-    ]
-    await status_msg.edit_text(report_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+    back_btn = InlineKeyboardButton("🔙 Back to Channels Menu", callback_data="chan_menu")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    await status_msg.edit_text(report_text, reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
 
 async def cancel_channel_mapping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query

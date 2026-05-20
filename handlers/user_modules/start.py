@@ -22,12 +22,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         admin_keyboard = [
             [InlineKeyboardButton("🛠️ Master Admin Panel (/settings)", callback_data="menu_main")]
         ]
-        await update.message.reply_text(
-            admin_msg,
-            reply_markup=InlineKeyboardMarkup(admin_keyboard),
-            parse_mode="Markdown",
-            disable_web_page_preview=True
-        )
+        try:
+            await update.message.reply_text(
+                admin_msg,
+                reply_markup=InlineKeyboardMarkup(admin_keyboard),
+                parse_mode="Markdown",
+                disable_web_page_preview=True
+            )
+        except Exception as e:
+            if "can't parse" in str(e).lower() or "entity" in str(e).lower():
+                logger.warning(f"Markdown parsing failed for admin welcome message, falling back to raw text: {e}")
+                await update.message.reply_text(
+                    admin_msg,
+                    reply_markup=InlineKeyboardMarkup(admin_keyboard),
+                    parse_mode=None,
+                    disable_web_page_preview=True
+                )
+            else:
+                raise e
         return
 
     user_clean = clean_username(user.first_name or user.username or "User")
@@ -76,9 +88,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     keyboard.append([InlineKeyboardButton("📦 Browse Premium Plans", callback_data="select_plans_menu")])
     keyboard.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
 
-    await update.message.reply_text(
-        translate_text(welcome_msg, lang),
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="Markdown",
-        disable_web_page_preview=True
-    )
+    try:
+        await update.message.reply_text(
+            translate_text(welcome_msg, lang),
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        if "can't parse" in str(e).lower() or "entity" in str(e).lower():
+            logger.warning(f"Markdown parsing failed for user welcome message, falling back to raw text: {e}")
+            await update.message.reply_text(
+                translate_text(welcome_msg, lang),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=None,
+                disable_web_page_preview=True
+            )
+        else:
+            raise e

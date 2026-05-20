@@ -16,6 +16,7 @@ async def show_raid_menu(query) -> None:
     """
     Displays the Channel Protection system configuration panel.
     """
+    from utils.keyboard_helper import build_grid_keyboard
     raid_enabled = db.get_setting("raid_enabled", "0")
     auto_remove = db.get_setting("auto_remove_enabled", "0")
     timeout = db.get_setting("auto_remove_timeout_mins", "10")
@@ -39,26 +40,17 @@ async def show_raid_menu(query) -> None:
         "Configure options below or run an on-demand verification scan:"
     )
 
-    keyboard = [
-        [
-            InlineKeyboardButton("🛡️ Auto Scan Protection", callback_data="raid_toggle_prot")
-        ],
-        [
-            InlineKeyboardButton("🤖 Auto-Kick Non-Subscribers", callback_data="raid_toggle_rem")
-        ],
-        [
-            InlineKeyboardButton("⏱️ Set Auto-Kick Delay", callback_data="raid_edit_time_start"),
-            InlineKeyboardButton("⏰ Set Background Scan Interval", callback_data="raid_edit_interval_start")
-        ],
-        [
-            InlineKeyboardButton("📢 Edit Alert Channel", callback_data="raid_edit_chan_start"),
-            InlineKeyboardButton("🔍 Trigger Manual Scan Now", callback_data="raid_run_scan")
-        ],
-        [
-            InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
-        ]
+    buttons = [
+        InlineKeyboardButton("🛡️ Auto Scan Protection", callback_data="raid_toggle_prot"),
+        InlineKeyboardButton("🤖 Auto-Kick Non-Subscribers", callback_data="raid_toggle_rem"),
+        InlineKeyboardButton("⏱️ Set Auto-Kick Delay", callback_data="raid_edit_time_start"),
+        InlineKeyboardButton("⏰ Set Background Scan Interval", callback_data="raid_edit_interval_start"),
+        InlineKeyboardButton("📢 Edit Alert Channel", callback_data="raid_edit_chan_start"),
+        InlineKeyboardButton("🔍 Trigger Manual Scan Now", callback_data="raid_run_scan")
     ]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def toggle_raid_protection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -81,16 +73,18 @@ async def toggle_auto_remove(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await show_raid_menu(query)
 
 async def start_edit_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")]]
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await query.edit_message_text(
         "⏱️ **Set Auto-Kick Delay Time** ⏱️\n\n"
         "Please send the number of minutes the bot should wait before automatically kicking an unauthorized user after they join or are detected.\n\n"
         "Example: Enter `10` for 10 minutes.\n\n"
         "Type /cancel to keep current settings.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
@@ -98,6 +92,7 @@ async def start_edit_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return EDIT_TIMEOUT_INPUT
 
 async def receive_timeout_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     text = update.message.text.strip()
     try:
         await update.message.delete()
@@ -110,6 +105,8 @@ async def receive_timeout_input(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception:
             pass
 
+    back_btn = InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     try:
         minutes = int(text)
         if minutes <= 0:
@@ -117,19 +114,17 @@ async def receive_timeout_input(update: Update, context: ContextTypes.DEFAULT_TY
         
         db.set_setting("auto_remove_timeout_mins", str(minutes))
         
-        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text=f"✅ **Auto-Kick Delay Updated!**\n\n⏱️ New auto-kick delay is set to `{minutes} minutes`.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     except Exception:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text="❌ **Invalid Number.** Please send a valid positive number of minutes.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     
@@ -137,15 +132,17 @@ async def receive_timeout_input(update: Update, context: ContextTypes.DEFAULT_TY
     return ConversationHandler.END
 
 async def start_edit_raid_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")]]
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await query.edit_message_text(
         "📢 **Configure Raid Alert Channel**\n\n"
         "Please send the Telegram Channel ID where the bot should post unauthorized access alerts (e.g. `-1003564494376`).\n\n"
         "Type /cancel to abort.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
@@ -153,6 +150,7 @@ async def start_edit_raid_channel(update: Update, context: ContextTypes.DEFAULT_
     return EDIT_RAID_CHANNEL_INPUT
 
 async def receive_raid_channel_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     text = update.message.text.strip()
     try:
         await update.message.delete()
@@ -165,23 +163,23 @@ async def receive_raid_channel_input(update: Update, context: ContextTypes.DEFAU
         except Exception:
             pass
 
+    back_btn = InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     try:
         channel_id = int(text)
         db.set_setting("raid_channel_id", str(channel_id))
         
-        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text=f"✅ **Raid Alert Channel Updated!**\n\n📢 New Alert Channel ID: `{channel_id}`",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     except Exception:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text="❌ **Invalid Channel ID.** Please send a valid Telegram Channel ID (e.g. starting with -100).",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     
@@ -238,15 +236,17 @@ async def handle_raid_ignore_action(update: Update, context: ContextTypes.DEFAUL
     )
 
 async def start_edit_interval(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     
-    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")]]
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="raid_cancel")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await query.edit_message_text(
         "⏰ **Set Background Scan Interval** ⏰\n\n"
         "Please send the background scan interval in hours (e.g. `0.5` for 30 minutes, `1` for 1 hour, `6` for 6 hours).\n\n"
         "Type /cancel to keep current settings.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
@@ -254,6 +254,7 @@ async def start_edit_interval(update: Update, context: ContextTypes.DEFAULT_TYPE
     return EDIT_SCAN_INTERVAL_INPUT
 
 async def receive_interval_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     text = update.message.text.strip()
     try:
         await update.message.delete()
@@ -266,6 +267,8 @@ async def receive_interval_input(update: Update, context: ContextTypes.DEFAULT_T
         except Exception:
             pass
 
+    back_btn = InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     try:
         hours = float(text)
         if hours <= 0:
@@ -273,19 +276,17 @@ async def receive_interval_input(update: Update, context: ContextTypes.DEFAULT_T
         
         db.set_setting("scan_interval_hours", str(hours))
         
-        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text=f"✅ **Background Scan Interval Updated!**\n\n⏱️ Background scans will run every `{hours} hours`.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     except Exception:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]]
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text="❌ **Invalid Number.** Please send a valid positive number of hours (e.g. `0.5` or `2`).",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     

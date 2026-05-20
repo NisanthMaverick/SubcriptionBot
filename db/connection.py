@@ -227,6 +227,46 @@ class ConnectionManager:
             else:
                 pool_inst.putconn(conn, close=True)
 
+    def _run_read_query(self, query_str: str, params: tuple = ()) -> List[tuple]:
+        try:
+            with self._get_cursor() as (cursor, conn):
+                cursor.execute(query_str, params)
+                return cursor.fetchall()
+        except Exception as e:
+            logger.warning(f"Read query failed on active DB: {e}. Falling back to search.")
+            for url in self._db_urls:
+                if self._db_status.get(url) != "Online":
+                    continue
+                try:
+                    with self._get_cursor(specific_url=url) as (cursor, conn):
+                        cursor.execute(query_str, params)
+                        res = cursor.fetchall()
+                        self._active_db_idx = self._db_urls.index(url)
+                        return res
+                except Exception:
+                    pass
+            raise e
+
+    def _run_read_query_one(self, query_str: str, params: tuple = ()) -> Optional[tuple]:
+        try:
+            with self._get_cursor() as (cursor, conn):
+                cursor.execute(query_str, params)
+                return cursor.fetchone()
+        except Exception as e:
+            logger.warning(f"Read one query failed on active DB: {e}. Falling back to search.")
+            for url in self._db_urls:
+                if self._db_status.get(url) != "Online":
+                    continue
+                try:
+                    with self._get_cursor(specific_url=url) as (cursor, conn):
+                        cursor.execute(query_str, params)
+                        res = cursor.fetchone()
+                        self._active_db_idx = self._db_urls.index(url)
+                        return res
+                except Exception:
+                    pass
+            raise e
+
     def get_database_analytics(self) -> List[Dict[str, Any]]:
         analytics = []
         for idx, url in enumerate(self._db_urls):

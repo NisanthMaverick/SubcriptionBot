@@ -27,34 +27,56 @@ class UserQueries(ConnectionManager):
 
     def count_users(self) -> int:
         uids = set()
-        for url in self._db_urls:
-            if self._db_status.get(url) != "Online":
-                continue
-            try:
-                with self._get_cursor(specific_url=url) as (cursor, conn):
-                    cursor.execute("SELECT user_id FROM users")
-                    for r in cursor.fetchall():
-                        uids.add(r[0])
-                    cursor.execute("SELECT user_id FROM subscriptions")
-                    for r in cursor.fetchall():
-                        uids.add(r[0])
-            except Exception:
-                pass
-        return len(uids)
+        try:
+            rows = self._run_read_query("SELECT user_id FROM users")
+            for r in rows:
+                uids.add(r[0])
+            rows2 = self._run_read_query("SELECT user_id FROM subscriptions")
+            for r in rows2:
+                uids.add(r[0])
+            return len(uids)
+        except Exception:
+            # Fallback in case of failure
+            for url in self._db_urls:
+                if self._db_status.get(url) != "Online":
+                    continue
+                try:
+                    with self._get_cursor(specific_url=url) as (cursor, conn):
+                        cursor.execute("SELECT user_id FROM users")
+                        for r in cursor.fetchall():
+                            uids.add(r[0])
+                        cursor.execute("SELECT user_id FROM subscriptions")
+                        for r in cursor.fetchall():
+                            uids.add(r[0])
+                    return len(uids)
+                except Exception:
+                    pass
+        return 0
 
     def get_all_unique_user_ids(self) -> List[int]:
         uids = set()
-        for url in self._db_urls:
-            if self._db_status.get(url) != "Online":
-                continue
-            try:
-                with self._get_cursor(specific_url=url) as (cursor, conn):
-                    cursor.execute("SELECT user_id FROM users")
-                    for r in cursor.fetchall():
-                        uids.add(r[0])
-                    cursor.execute("SELECT user_id FROM subscriptions")
-                    for r in cursor.fetchall():
-                        uids.add(r[0])
-            except Exception:
-                pass
-        return list(uids)
+        try:
+            rows = self._run_read_query("SELECT user_id FROM users")
+            for r in rows:
+                uids.add(r[0])
+            rows2 = self._run_read_query("SELECT user_id FROM subscriptions")
+            for r in rows2:
+                uids.add(r[0])
+            return list(uids)
+        except Exception:
+            # Fallback
+            for url in self._db_urls:
+                if self._db_status.get(url) != "Online":
+                    continue
+                try:
+                    with self._get_cursor(specific_url=url) as (cursor, conn):
+                        cursor.execute("SELECT user_id FROM users")
+                        for r in cursor.fetchall():
+                            uids.add(r[0])
+                        cursor.execute("SELECT user_id FROM subscriptions")
+                        for r in cursor.fetchall():
+                            uids.add(r[0])
+                    return list(uids)
+                except Exception:
+                    pass
+        return []

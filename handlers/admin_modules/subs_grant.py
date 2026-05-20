@@ -10,14 +10,16 @@ from handlers.admin_modules import GRANT_USER_ID, GRANT_PLAN, GRANT_DURATION, GR
 logger = logging.getLogger(__name__)
 
 async def grant_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
-    keyboard = [[InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_subs")]]
+    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_subs")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     prompt_msg = await query.edit_message_text(
         "➕ **Manually Grant VIP Subscription Access**\n\n"
         "Please send the Telegram **User ID** of the user you want to grant premium access to (e.g., `123456789`).\n\n"
         "Type /cancel to abort.",
-        reply_markup=InlineKeyboardMarkup(keyboard),
+        reply_markup=reply_markup,
         parse_mode="Markdown"
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
@@ -25,6 +27,7 @@ async def grant_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return GRANT_USER_ID
 
 async def receive_grant_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     user_id_str = update.message.text.strip()
     try:
         await update.message.delete()
@@ -37,8 +40,9 @@ async def receive_grant_user_id(update: Update, context: ContextTypes.DEFAULT_TY
             pass
 
     if not user_id_str.isdigit():
-        keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")]]
-        sent_msg = await context.bot.send_message(chat_id=update.message.chat_id, text="⚠️ User ID must be numeric. Please send a valid numeric Telegram ID:", reply_markup=InlineKeyboardMarkup(keyboard))
+        back_btn = InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        sent_msg = await context.bot.send_message(chat_id=update.message.chat_id, text="⚠️ User ID must be numeric. Please send a valid numeric Telegram ID:", reply_markup=reply_markup)
         context.user_data["prompt_msg_id"] = sent_msg.message_id
         context.user_data["prompt_chat_id"] = sent_msg.chat_id
         return GRANT_USER_ID
@@ -46,23 +50,26 @@ async def receive_grant_user_id(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data["grant_uid"] = int(user_id_str)
     plans = db.get_all_plans()
     if not plans:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Menu", callback_data="menu_subs")]]
-        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ No active plans available in the database to grant.", reply_markup=InlineKeyboardMarkup(keyboard))
+        back_btn = InlineKeyboardButton("🔙 Back to Menu", callback_data="menu_subs")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ No active plans available in the database to grant.", reply_markup=reply_markup)
         return ConversationHandler.END
 
     text = f"👤 User ID `{user_id_str}` validated.\n\n📦 **Select Subscription Plan to Grant:**"
-    keyboard = []
+    buttons = []
     for p in plans:
         name_clean = p['name'].split('\n')[0][:40]
-        keyboard.append([InlineKeyboardButton(f"🎁 {name_clean}", callback_data=f"gplan_{p['plan_id']}")])
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")])
+        buttons.append(InlineKeyboardButton(f"🎁 {name_clean}", callback_data=f"gplan_{p['plan_id']}"))
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
 
-    sent_msg = await context.bot.send_message(chat_id=update.message.chat_id, text=text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    sent_msg = await context.bot.send_message(chat_id=update.message.chat_id, text=text, reply_markup=reply_markup, parse_mode="Markdown")
     context.user_data["prompt_msg_id"] = sent_msg.message_id
     context.user_data["prompt_chat_id"] = sent_msg.chat_id
     return GRANT_PLAN
 
 async def handle_grant_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     pid = int(query.data.split("_")[-1])
@@ -75,33 +82,36 @@ async def handle_grant_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"🎁 **Selected Plan: {plan['name'].split('\n')[0]}**\n\n"
         "⏱ **Select Duration for Grant:**"
     )
-    keyboard = []
+    buttons = []
     for idx, d in enumerate(plan["durations"]):
         dur_name = d.get("duration", "")
         dur_price = d.get("price", "")
-        keyboard.append([InlineKeyboardButton(f"⏱ {dur_name} ({dur_price})", callback_data=f"gdur_{idx}")])
-    keyboard.append([InlineKeyboardButton("🌟 Permanent / Lifetime Access", callback_data="gdur_lifetime")])
-    keyboard.append([InlineKeyboardButton("⏳ Custom Duration Interval", callback_data="gdur_custom")])
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")])
+        buttons.append(InlineKeyboardButton(f"⏱ {dur_name} ({dur_price})", callback_data=f"gdur_{idx}"))
+    buttons.append(InlineKeyboardButton("🌟 Permanent / Lifetime Access", callback_data="gdur_lifetime"))
+    buttons.append(InlineKeyboardButton("⏳ Custom Duration Interval", callback_data="gdur_custom"))
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
 
-    prompt_msg = await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    prompt_msg = await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
     return GRANT_DURATION
 
 async def handle_grant_duration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     data = query.data.replace("gdur_", "")
 
     if data == "custom":
-        keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")]]
+        back_btn = InlineKeyboardButton("❌ Cancel", callback_data="menu_subs")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
         prompt_msg = await query.edit_message_text(
             "⏳ **Custom Duration Interval**\n\n"
             "Please send the custom duration text and price separated by `-`\n"
             "(e.g., `7 Days - INR 10` or `3 Months - INR 50`):\n\n"
             "Type /cancel to abort.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
         context.user_data["prompt_msg_id"] = query.message.message_id
@@ -138,6 +148,7 @@ async def receive_grant_custom(update: Update, context: ContextTypes.DEFAULT_TYP
     return await execute_grant_access(update.message, context, dur, price, update.effective_user.first_name)
 
 async def execute_grant_access(target_obj, context, duration, price_str, admin_name) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     uid = context.user_data["grant_uid"]
     plan = context.user_data["grant_plan"]
     start_date = datetime.now().strftime("%d/%m/%Y")
@@ -240,15 +251,16 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
         except Exception as e:
             logger.error(f"Failed to send granted details to Admin ID {ADMIN_ID}: {e}")
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")]]
+    back_btn = InlineKeyboardButton("🔙 Back to Subscriber Management", callback_data="menu_subs")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     success_msg = f"✅ VIP Access successfully granted to [{username_clean}]({profile_link}) (`{uid}`) for duration: `{duration}` ({price_str}).\n\n{notify_status}"
     chat_id = context.user_data.get("prompt_chat_id")
     if hasattr(target_obj, 'edit_message_text'):
-        await target_obj.edit_message_text(success_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+        await target_obj.edit_message_text(success_msg, reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
     elif chat_id:
-        await context.bot.send_message(chat_id=chat_id, text=success_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+        await context.bot.send_message(chat_id=chat_id, text=success_msg, reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
     elif hasattr(target_obj, 'reply_text'):
-        await target_obj.reply_text(success_msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown", disable_web_page_preview=True)
+        await target_obj.reply_text(success_msg, reply_markup=reply_markup, parse_mode="Markdown", disable_web_page_preview=True)
 
     context.user_data.clear()
     return ConversationHandler.END

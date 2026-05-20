@@ -3,6 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from database import db, get_friendly_db_name
 from handlers.admin_modules.menu import show_main_menu
+from utils.keyboard_helper import build_grid_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,8 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
                 f"   • 💾 **Storage Used**: **{st['size_mb']} MB** (`{st['usage_percent']}%` of 500MB free quota)\n"
                 f"   • 👥 **Registered Users**: **{st['total_users']}**\n"
                 f"   • 📦 **Total Subscriptions**: **{st['total_subs']}**\n"
-                f"   • 👑 **Active VIP Members**: **{st['active_subs']}**\n\n"
+                f"   • 👑 **Active VIP Members**: **{st['active_subs']}**\n"
+                f"   • 💳 **Dual-Write**: 🟢 Enabled & Syncing\n\n"
             )
         report += (
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -49,11 +51,13 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
             st_icon = "🟢" if st == "Online" else ("🟡" if st == "Full" else "🔴")
             text += f"{st_icon} **Shard #{idx + 1}**: `{fname}` ({st})\n"
         text += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nClick below to attach a new PostgreSQL database shard to the rotation pool:"
-        kb = [
-            [InlineKeyboardButton("➕ Add New Database URL", callback_data="add_db_url")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]
+        
+        buttons = [
+            InlineKeyboardButton("➕ Add New Database URL", callback_data="add_db_url")
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "menu_db_clean":
         text = (
@@ -61,13 +65,14 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
             "⚠️ **CAUTION**: These actions modify or permanently delete database records. Please proceed with care!\n\n"
             "Select an action below:"
         )
-        keyboard = [
-            [InlineKeyboardButton("🧹 Clear Only Subscriber Records", callback_data="db_warn_subs")],
-            [InlineKeyboardButton("🧹 Clear Only Subscription Plans", callback_data="db_warn_plans")],
-            [InlineKeyboardButton("🚨 Factory Reset (Wipe Entire Database) 🚨", callback_data="db_warn_all")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]
+        buttons = [
+            InlineKeyboardButton("🧹 Clear Only Subscriber Records", callback_data="db_warn_subs"),
+            InlineKeyboardButton("🧹 Clear Only Subscription Plans", callback_data="db_warn_plans"),
+            InlineKeyboardButton("🚨 Factory Reset (Wipe Entire Database) 🚨", callback_data="db_warn_all")
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "db_warn_subs":
         text = (
@@ -76,11 +81,12 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
             "This action cannot be undone!\n\n"
             "Are you absolutely sure you want to proceed?"
         )
-        keyboard = [
-            [InlineKeyboardButton("🚨 YES, PERMANENTLY DELETE ALL SUBSCRIBERS 🚨", callback_data="db_exec_subs")],
-            [InlineKeyboardButton("❌ NO, CANCEL & RETURN TO SAFETY ❌", callback_data="menu_main")]
+        buttons = [
+            InlineKeyboardButton("🚨 YES, PERMANENTLY DELETE ALL SUBSCRIBERS 🚨", callback_data="db_exec_subs")
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("❌ NO, CANCEL & RETURN TO SAFETY ❌", callback_data="menu_main")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "db_warn_plans":
         text = (
@@ -89,11 +95,12 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
             "This action cannot be undone!\n\n"
             "Are you absolutely sure you want to proceed?"
         )
-        keyboard = [
-            [InlineKeyboardButton("🚨 YES, PERMANENTLY DELETE ALL PLANS 🚨", callback_data="db_exec_plans")],
-            [InlineKeyboardButton("❌ NO, CANCEL & RETURN TO SAFETY ❌", callback_data="menu_main")]
+        buttons = [
+            InlineKeyboardButton("🚨 YES, PERMANENTLY DELETE ALL PLANS 🚨", callback_data="db_exec_plans")
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("❌ NO, CANCEL & RETURN TO SAFETY ❌", callback_data="menu_main")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "db_warn_all":
         text = (
@@ -102,26 +109,30 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
             "This action cannot be undone!\n\n"
             "Are you absolutely sure you want to proceed?"
         )
-        keyboard = [
-            [InlineKeyboardButton("🚨 YES, WIPE ENTIRE DATABASE 🚨", callback_data="db_exec_all")],
-            [InlineKeyboardButton("❌ NO, CANCEL & RETURN TO SAFETY ❌", callback_data="menu_main")]
+        buttons = [
+            InlineKeyboardButton("🚨 YES, WIPE ENTIRE DATABASE 🚨", callback_data="db_exec_all")
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("❌ NO, CANCEL & RETURN TO SAFETY ❌", callback_data="menu_main")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "db_exec_subs":
         db.clear_subscriptions()
-        keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]]
-        await query.edit_message_text("✅ **All subscriber subscription records have been completely erased from the database.**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text("✅ **All subscriber subscription records have been completely erased from the database.**", reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "db_exec_plans":
         db.clear_plans()
-        keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]]
-        await query.edit_message_text("✅ **All subscription plans have been completely erased from the database.**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text("✅ **All subscription plans have been completely erased from the database.**", reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "db_exec_all":
         db.clear_all_tables()
-        keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]]
-        await query.edit_message_text("🚨 **Factory Reset Complete: All plans, subscriber records, and custom settings have been completely erased from the database.**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text("🚨 **Factory Reset Complete: All plans, subscriber records, and custom settings have been completely erased from the database.**", reply_markup=reply_markup, parse_mode="Markdown")
         return True
 
     return False

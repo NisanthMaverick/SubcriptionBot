@@ -17,19 +17,22 @@ async def edit_message_safely(query, text: str, reply_markup: InlineKeyboardMark
             logger.warning(f"Error editing message safely: {e}")
 
 async def show_config_menu(query):
+    from utils.keyboard_helper import build_grid_keyboard
     log_chan = db.get_setting("log_channel_id", "Not Configured")
     text = f"⚙️ **Bot Configurations & Automation** ⚙️\n\nCurrent Log Channel: `{log_chan}`\n\nSelect an action:"
-    keyboard = [
-        [InlineKeyboardButton("💬 Customize Welcome Screen (/start)", callback_data="welcome_config_menu")],
-        [InlineKeyboardButton("📋 Configure Log Channel", callback_data="admin_log_channel")],
-        [InlineKeyboardButton("⏰ Expiry Notification Settings", callback_data="admin_expiry_notify")],
-        [InlineKeyboardButton("📺 Premium Channels", callback_data="chan_menu"),
-         InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")],
-        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]
+    buttons = [
+        InlineKeyboardButton("💬 Customize Welcome Screen (/start)", callback_data="welcome_config_menu"),
+        InlineKeyboardButton("📋 Configure Log Channel", callback_data="admin_log_channel"),
+        InlineKeyboardButton("⏰ Expiry Notification Settings", callback_data="admin_expiry_notify"),
+        InlineKeyboardButton("📺 Premium Channels", callback_data="chan_menu"),
+        InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
     ]
-    await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
+    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, text, reply_markup)
 
 async def show_welcome_config_menu(query, alert=""):
+    from utils.keyboard_helper import build_grid_keyboard
     cur_text = db.get_setting("welcome_msg_text", "Default Welcome Message")
     cur_btns_json = db.get_setting("welcome_custom_buttons", "None")
     text = f"{alert}\n\n" if alert else ""
@@ -38,24 +41,27 @@ async def show_welcome_config_menu(query, alert=""):
         f"**Current Text Snapshot**:\n`{cur_text[:120]}...`\n\n"
         f"**Custom Buttons**:\n`{cur_btns_json}`"
     )
-    keyboard = [
-        [InlineKeyboardButton("📝 Edit Welcome Text", callback_data="welcome_edit_text")],
-        [InlineKeyboardButton("➕ Add Welcome Button", callback_data="welcome_add_btn"),
-         InlineKeyboardButton("🗑️ Reset Buttons", callback_data="welcome_reset_btns")],
-        [InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")]
+    buttons = [
+        InlineKeyboardButton("📝 Edit Welcome Text", callback_data="welcome_edit_text"),
+        InlineKeyboardButton("➕ Add Welcome Button", callback_data="welcome_add_btn"),
+        InlineKeyboardButton("🗑️ Reset Buttons", callback_data="welcome_reset_btns")
     ]
-    await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, text, reply_markup)
 
 async def start_welcome_edit_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
-    keyboard = [[InlineKeyboardButton("❌ Cancel / Back", callback_data="welcome_config_menu")]]
-    await edit_message_safely(query, "📝 **Edit Welcome Message Text**\n\nSend the welcome message formatted in Markdown.\n\nType /cancel to abort.", InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("❌ Cancel / Back", callback_data="welcome_config_menu"))
+    await edit_message_safely(query, "📝 **Edit Welcome Message Text**\n\nSend the welcome message formatted in Markdown.\n\nType /cancel to abort.", reply_markup)
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
     return WELCOME_EDIT_TEXT
 
 async def receive_welcome_edit_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     text = update.message.text.strip()
     try:
         await update.message.delete()
@@ -64,20 +70,22 @@ async def receive_welcome_edit_text(update: Update, context: ContextTypes.DEFAUL
         try: await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
         except Exception: pass
     db.set_setting("welcome_msg_text", text)
-    keyboard = [[InlineKeyboardButton("🔙 Back to Welcome Customization", callback_data="welcome_config_menu")]]
-    await context.bot.send_message(chat_id=update.message.chat_id, text="✅ Welcome message text successfully updated.", reply_markup=InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Welcome Customization", callback_data="welcome_config_menu"))
+    await context.bot.send_message(chat_id=update.message.chat_id, text="✅ Welcome message text successfully updated.", reply_markup=reply_markup)
     return ConversationHandler.END
 
 async def start_welcome_add_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
-    keyboard = [[InlineKeyboardButton("❌ Cancel / Back", callback_data="welcome_config_menu")]]
-    await edit_message_safely(query, "➕ **Add Custom Welcome Button**\n\nSend title and URL separated by `-` (e.g. `Rules - https://t.me/rules`):\n\nType /cancel to abort.", InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("❌ Cancel / Back", callback_data="welcome_config_menu"))
+    await edit_message_safely(query, "➕ **Add Custom Welcome Button**\n\nSend title and URL separated by `-` (e.g. `Rules - https://t.me/rules`):\n\nType /cancel to abort.", reply_markup)
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
     return WELCOME_ADD_BTN
 
 async def receive_welcome_add_btn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     text = update.message.text.strip()
     try: await update.message.delete()
     except Exception: pass
@@ -86,8 +94,8 @@ async def receive_welcome_add_btn(update: Update, context: ContextTypes.DEFAULT_
         except Exception: pass
 
     if "-" not in text:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Welcome Customization", callback_data="welcome_config_menu")]]
-        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ Invalid format. Please use `Title - URL`.", reply_markup=InlineKeyboardMarkup(keyboard))
+        reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Welcome Customization", callback_data="welcome_config_menu"))
+        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ Invalid format. Please use `Title - URL`.", reply_markup=reply_markup)
         return ConversationHandler.END
 
     parts = text.split("-", 1)
@@ -100,22 +108,24 @@ async def receive_welcome_add_btn(update: Update, context: ContextTypes.DEFAULT_
     btns_list.append({"text": title, "url": url})
     db.set_setting("welcome_custom_buttons", json.dumps(btns_list))
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Welcome Customization", callback_data="welcome_config_menu")]]
-    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Custom button `{title}` successfully added.", reply_markup=InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Welcome Customization", callback_data="welcome_config_menu"))
+    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Custom button `{title}` successfully added.", reply_markup=reply_markup)
     return ConversationHandler.END
 
 async def start_ep_extbtn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     pid = int(query.data.split("_")[-1])
     context.user_data["edit_ext_pid"] = pid
-    keyboard = [[InlineKeyboardButton("❌ Cancel / Back", callback_data=f"edit_plan_{pid}")]]
-    await edit_message_safely(query, f"➕ **Add Extra Link Button for Plan #{pid}**\n\nSend title and URL separated by `-`:\n\nType /cancel to abort.", InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("❌ Cancel / Back", callback_data=f"edit_plan_{pid}"))
+    await edit_message_safely(query, f"➕ **Add Extra Link Button for Plan #{pid}**\n\nSend title and URL separated by `-`:\n\nType /cancel to abort.", reply_markup)
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
     return PLAN_ADD_EXT_BTN
 
 async def receive_ep_extbtn(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     text = update.message.text.strip()
     try: await update.message.delete()
     except Exception: pass
@@ -125,8 +135,8 @@ async def receive_ep_extbtn(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     pid = context.user_data.get("edit_ext_pid", 0)
     if "-" not in text:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Plan Editing", callback_data=f"edit_plan_{pid}")]]
-        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ Invalid format. Please use `Title - URL`.", reply_markup=InlineKeyboardMarkup(keyboard))
+        reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Plan Editing", callback_data=f"edit_plan_{pid}"))
+        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ Invalid format. Please use `Title - URL`.", reply_markup=reply_markup)
         return ConversationHandler.END
 
     parts = text.split("-", 1)
@@ -139,21 +149,23 @@ async def receive_ep_extbtn(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     btns_list.append({"text": title, "url": url})
     db.set_setting(f"link_custom_buttons_{pid}", json.dumps(btns_list))
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Plan Editing", callback_data=f"edit_plan_{pid}")]]
-    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Extra link button `{title}` successfully added to Plan #{pid}.", reply_markup=InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Plan Editing", callback_data=f"edit_plan_{pid}"))
+    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Extra link button `{title}` successfully added to Plan #{pid}.", reply_markup=reply_markup)
     return ConversationHandler.END
 
 async def start_log_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     current_log = db.get_setting("log_channel_id", "Not Set")
-    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel_log_setup")]]
-    await edit_message_safely(query, f"📋 **Log Channel Configuration**\n\nCurrent Log Channel: `{current_log}`\n\nSend a Channel ID starting with `-` or username (`@channel`).\n\nType /cancel to abort.", InlineKeyboardMarkup(keyboard))
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("❌ Cancel", callback_data="cancel_log_setup"))
+    await edit_message_safely(query, f"📋 **Log Channel Configuration**\n\nCurrent Log Channel: `{current_log}`\n\nSend a Channel ID starting with `-` or username (`@channel`).\n\nType /cancel to abort.", reply_markup)
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
     return LOG_CHAN_ID
 
 async def receive_log_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     chan = update.message.text.strip()
     try: await update.message.delete()
     except Exception: pass
@@ -161,19 +173,21 @@ async def receive_log_channel(update: Update, context: ContextTypes.DEFAULT_TYPE
         try: await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
         except Exception: pass
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")]]
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     if not (chan.startswith("-") or chan.startswith("@") or chan.isdigit()):
-        sent_msg = await context.bot.send_message(chat_id=update.message.chat_id, text="⚠️ Invalid format. Must start with `-` or `@`.", reply_markup=InlineKeyboardMarkup(keyboard))
+        sent_msg = await context.bot.send_message(chat_id=update.message.chat_id, text="⚠️ Invalid format. Must start with `-` or `@`.", reply_markup=reply_markup)
         context.user_data["prompt_msg_id"] = sent_msg.message_id
         context.user_data["prompt_chat_id"] = sent_msg.chat_id
         return LOG_CHAN_ID
 
     db.set_setting("log_channel_id", chan)
-    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Log channel updated to: `{chan}`", reply_markup=InlineKeyboardMarkup(keyboard))
+    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ Log channel updated to: `{chan}`", reply_markup=reply_markup)
     context.user_data.clear()
     return ConversationHandler.END
 
 async def expiry_notify_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
     enabled = db.get_setting("expiry_notify_enabled", "0")
@@ -186,14 +200,16 @@ async def expiry_notify_settings(update: Update, context: ContextTypes.DEFAULT_T
     )
     toggle_btn = "🔴 Disable Notifications" if enabled == "1" else "🟢 Enable Notifications"
     toggle_val = "0" if enabled == "1" else "1"
-    keyboard = [
-        [InlineKeyboardButton(toggle_btn, callback_data=f"set_exp_en_{toggle_val}")],
-        [InlineKeyboardButton("⏱ 12 Hours Before", callback_data="set_exp_hr_12"),
-         InlineKeyboardButton("⏱ 24 Hours Before", callback_data="set_exp_hr_24"),
-         InlineKeyboardButton("⏱ 48 Hours Before", callback_data="set_exp_hr_48")],
-        [InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")]
+    
+    buttons = [
+        InlineKeyboardButton(toggle_btn, callback_data=f"set_exp_en_{toggle_val}"),
+        InlineKeyboardButton("⏱ 12 Hours Before", callback_data="set_exp_hr_12"),
+        InlineKeyboardButton("⏱ 24 Hours Before", callback_data="set_exp_hr_24"),
+        InlineKeyboardButton("⏱ 48 Hours Before", callback_data="set_exp_hr_48")
     ]
-    await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
+    back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, text, reply_markup)
 
 async def handle_expiry_notify_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -233,19 +249,22 @@ async def export_bot_settings(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # Import Settings Conversation
 async def start_import_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
-    keyboard = [[InlineKeyboardButton("❌ Cancel", callback_data="cancel_import")]]
+    back_btn = InlineKeyboardButton("❌ Cancel", callback_data="cancel_import")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     await edit_message_safely(
         query,
         "📥 **Import Bot Settings**\n\nPlease upload and send the `.json` file that you exported previously.\n\nType /cancel to abort.",
-        InlineKeyboardMarkup(keyboard)
+        reply_markup
     )
     context.user_data["prompt_msg_id"] = query.message.message_id
     context.user_data["prompt_chat_id"] = query.message.chat_id
     return IMPORT_SETTINGS_FILE
 
 async def receive_import_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     doc = update.message.document
     try: await update.message.delete()
     except Exception: pass
@@ -253,9 +272,10 @@ async def receive_import_file(update: Update, context: ContextTypes.DEFAULT_TYPE
         try: await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
         except Exception: pass
 
-    keyboard = [[InlineKeyboardButton("🔙 Back to Backup Menu", callback_data="menu_backup_restore")]]
+    back_btn = InlineKeyboardButton("🔙 Back to Backup Menu", callback_data="menu_backup_restore")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
     if not doc or not doc.file_name.endswith(".json"):
-        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ **Invalid File.** Upload a `.json` settings file.", reply_markup=InlineKeyboardMarkup(keyboard))
+        await context.bot.send_message(chat_id=update.message.chat_id, text="❌ **Invalid File.** Upload a `.json` settings file.", reply_markup=reply_markup)
         return ConversationHandler.END
 
     try:
@@ -286,12 +306,12 @@ async def receive_import_file(update: Update, context: ContextTypes.DEFAULT_TYPE
         await context.bot.send_message(
             chat_id=update.message.chat_id,
             text=f"✅ **Settings Imported Successfully!**\n\n⚙️ Settings: `{len(settings)}` applied.\n📦 Plans: `{len(plans)}` plans configured.\n📺 Channels: `{len(channels)}` channels.\n🔗 Mappings: `{len(mappings)}` mapped links.",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            reply_markup=reply_markup,
             parse_mode="Markdown"
         )
     except Exception as e:
         logger.error(f"Import failed: {e}")
-        await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ **Failed to import settings:**\n\n`{e}`", reply_markup=InlineKeyboardMarkup(keyboard))
+        await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ **Failed to import settings:**\n\n`{e}`", reply_markup=reply_markup)
 
     context.user_data.clear()
     return ConversationHandler.END
@@ -305,18 +325,20 @@ async def cancel_import(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     return ConversationHandler.END
 
 async def show_backup_menu(query) -> None:
+    from utils.keyboard_helper import build_grid_keyboard
     text = (
         "📤📥 **Backup & Restore Settings** 📥📤\n\n"
         "Manage bot configuration backups:\n\n"
         "• **Export settings**: Creates a JSON backup of settings, plans, premium channels, and mapping tables.\n"
         "• **Import settings**: Upload a settings JSON backup file to overwrite current state."
     )
-    keyboard = [
-        [InlineKeyboardButton("📤 Export Settings (JSON)", callback_data="admin_export_settings")],
-        [InlineKeyboardButton("📥 Import Settings (JSON)", callback_data="admin_import_settings")],
-        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]
+    buttons = [
+        InlineKeyboardButton("📤 Export Settings (JSON)", callback_data="admin_export_settings"),
+        InlineKeyboardButton("📥 Import Settings (JSON)", callback_data="admin_import_settings")
     ]
-    await edit_message_safely(query, text, InlineKeyboardMarkup(keyboard))
+    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await edit_message_safely(query, text, reply_markup)
 
 settings_import_conv = ConversationHandler(
     entry_points=[CallbackQueryHandler(start_import_settings, pattern="^admin_import_settings$")],

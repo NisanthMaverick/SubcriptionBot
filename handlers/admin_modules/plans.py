@@ -9,6 +9,7 @@ from handlers.admin_modules.menu import is_admin
 logger = logging.getLogger(__name__)
 
 async def start_add_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
 
@@ -18,8 +19,9 @@ async def start_add_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     plans = db.get_all_plans()
     if len(plans) >= MAX_PLANS:
-        keyboard = [[InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")]]
-        await query.edit_message_text(f"⚠️ You have already reached the maximum limit of {MAX_PLANS} plans. Delete existing plans before adding new ones.", reply_markup=InlineKeyboardMarkup(keyboard))
+        back_btn = InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text(f"⚠️ You have already reached the maximum limit of {MAX_PLANS} plans. Delete existing plans before adding new ones.", reply_markup=reply_markup)
         return ConversationHandler.END
 
     next_id = len(plans) + 1
@@ -37,8 +39,9 @@ async def start_add_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "Please send the **Plan Name & Title** (e.g., `1️⃣ Series Channel - Premium 📺`).\n\n"
         "Type /cancel to abort."
     )
-    keyboard = [[InlineKeyboardButton("🔙 Cancel / Back", callback_data="cancel_add_plan")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+    back_btn = InlineKeyboardButton("🔙 Cancel / Back", callback_data="cancel_add_plan")
+    reply_markup = build_grid_keyboard([], back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
     return ADD_PLAN_NAME
 
 async def receive_plan_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -57,6 +60,7 @@ async def receive_plan_desc(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     return ADD_PLAN_DURATIONS
 
 async def show_durations_menu(target, context: ContextTypes.DEFAULT_TYPE):
+    from utils.keyboard_helper import build_grid_keyboard
     plan_id = context.user_data["new_plan_id"]
     name = context.user_data["new_plan_name"]
     desc = context.user_data["new_plan_desc"]
@@ -77,12 +81,12 @@ async def show_durations_menu(target, context: ContextTypes.DEFAULT_TYPE):
         "Select an option below to manage durations or save:"
     )
 
-    keyboard = [[InlineKeyboardButton("➕ Add Duration & Price", callback_data="add_dur_btn")]]
+    buttons = [InlineKeyboardButton("➕ Add Duration & Price", callback_data="add_dur_btn")]
     if durations:
-        keyboard.append([InlineKeyboardButton("✅ Confirm & Save Plan", callback_data="confirm_save_plan")])
-    keyboard.append([InlineKeyboardButton("❌ Cancel / Back to Plans Menu", callback_data="cancel_add_plan")])
+        buttons.append(InlineKeyboardButton("✅ Confirm & Save Plan", callback_data="confirm_save_plan"))
+    back_btn = InlineKeyboardButton("❌ Cancel / Back to Plans Menu", callback_data="cancel_add_plan")
 
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
 
     if hasattr(target, 'edit_message_text'):
         await target.edit_message_text(summary, reply_markup=reply_markup, parse_mode="Markdown")
@@ -90,6 +94,7 @@ async def show_durations_menu(target, context: ContextTypes.DEFAULT_TYPE):
         await target.reply_text(summary, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def handle_durations_menu_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
 
@@ -111,13 +116,15 @@ async def handle_durations_menu_click(update: Update, context: ContextTypes.DEFA
         amount_range = f"{durations[0]['price']} - {durations[-1]['price']}" if len(durations) > 1 else durations[0]['price']
         db.save_plan(plan_id, name, desc, amount_range, durations)
 
-        keyboard = [[InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")]]
-        await query.edit_message_text(f"✅ **Plan '{name}' successfully saved with {len(durations)} duration options!**", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text(f"✅ **Plan '{name}' successfully saved with {len(durations)} duration options!**", reply_markup=reply_markup, parse_mode="Markdown")
         context.user_data.clear()
         return ConversationHandler.END
     elif query.data == "cancel_add_plan":
-        keyboard = [[InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")]]
-        await query.edit_message_text("❌ Action cancelled.", reply_markup=InlineKeyboardMarkup(keyboard))
+        back_btn = InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text("❌ Action cancelled.", reply_markup=reply_markup)
         context.user_data.clear()
         return ConversationHandler.END
 

@@ -4,6 +4,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_ID
 from database import db
 from handlers.admin_modules import ADMIN_MENTION_LINK
+from utils.keyboard_helper import build_grid_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +33,19 @@ async def show_main_menu(update: Update):
         "🛠️ **Master Admin Control Panel** 🛠️\n\n"
         "Select a category below to configure and manage the bot:"
     )
-    keyboard = [
-        [InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
-         InlineKeyboardButton("💳 Payment Settings", callback_data="menu_payment")],
-        [InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
-         InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config")],
-        [InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
-         InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast")],
-        [InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore")],
-        [InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr")],
-        [InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean")],
-        [InlineKeyboardButton("❌ Close Panel", callback_data="close_panel")]
+    buttons = [
+        InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
+        InlineKeyboardButton("💳 Payment Settings", callback_data="menu_payment"),
+        InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
+        InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
+        InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
+        InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
+        InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore"),
+        InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
+        InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean")
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    close_btn = InlineKeyboardButton("❌ Close Panel", callback_data="close_panel")
+    reply_markup = build_grid_keyboard(buttons, back_button=close_btn)
 
     if update.callback_query:
         await update.callback_query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
@@ -80,13 +81,14 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text("✅ Control panel closed. Type /settings to open again.")
     elif data == "menu_plans":
         text = "📦 **Subscription Plans Management** 📦\n\nChoose an action below:"
-        kb = [
-            [InlineKeyboardButton("➕ Add New Plan", callback_data="admin_add_plan")],
-            [InlineKeyboardButton("✏️ Edit Existing Plan", callback_data="list_edit_plans"),
-             InlineKeyboardButton("🗑️ Delete Plan", callback_data="list_delete_plans")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")]
+        buttons = [
+            InlineKeyboardButton("➕ Add New Plan", callback_data="admin_add_plan"),
+            InlineKeyboardButton("✏️ Edit Existing Plan", callback_data="list_edit_plans"),
+            InlineKeyboardButton("🗑️ Delete Plan", callback_data="list_delete_plans")
         ]
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
+        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
     elif data == "list_edit_plans":
         from handlers.admin_modules.plans_edit import list_edit_plans
         await list_edit_plans(query)
@@ -96,8 +98,9 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     elif data.startswith("del_plan_"):
         pid = int(data.split("_")[-1])
         db.delete_plan(pid)
-        kb = [[InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")]]
-        await query.edit_message_text(f"✅ Plan #{pid} successfully deleted.", reply_markup=InlineKeyboardMarkup(kb))
+        back_btn = InlineKeyboardButton("🔙 Back to Plans Menu", callback_data="menu_plans")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text(f"✅ Plan #{pid} successfully deleted.", reply_markup=reply_markup)
     elif data == "menu_payment":
         from handlers.admin_modules.payment import show_payment_menu
         await show_payment_menu(query)

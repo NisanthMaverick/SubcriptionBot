@@ -20,6 +20,7 @@ class Database(UserQueries, SettingQueries, PlanQueries, SubscriptionQueries, Ch
                 cls._instance._init_pools()
                 cls._instance._init_db()
                 cls._instance._seed_default_plans()
+                cls._instance._seed_default_settings()
             return cls._instance
 
     def _init_db(self):
