@@ -188,6 +188,20 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
         db.set_setting("restrict_link_sharing", new_val)
         from handlers.admin_modules.config import show_link_delivery_config_menu
         await show_link_delivery_config_menu(query, alert="✅ Link sharing protection updated!")
+    elif data == "toggle_link_auto_delete":
+        cur = db.get_setting("link_auto_delete", "1")
+        new_val = "0" if cur == "1" else "1"
+        db.set_setting("link_auto_delete", new_val)
+        from handlers.admin_modules.config import show_link_delivery_config_menu
+        await show_link_delivery_config_menu(query, alert="✅ Auto-Delete setting updated!")
+    elif data == "link_timer_config_menu":
+        from handlers.admin_modules.config import show_link_timer_config_menu
+        await show_link_timer_config_menu(query)
+    elif data.startswith("set_link_exp_"):
+        mins = data.split("_")[-1]
+        db.set_setting("link_expiry_minutes", mins)
+        from handlers.admin_modules.config import show_link_timer_config_menu
+        await show_link_timer_config_menu(query, alert=f"✅ Expiry timer set to {mins} minutes!")
     elif data.startswith("ep_resext_"):
         pid = int(data.split("_")[-1])
         db.set_setting(f"link_custom_buttons_{pid}", "")

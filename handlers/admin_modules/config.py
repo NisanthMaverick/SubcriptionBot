@@ -372,9 +372,12 @@ async def show_link_delivery_config_menu(query, alert=""):
     from utils.keyboard_helper import build_grid_keyboard
     delivery_type = db.get_setting("link_delivery_type", "folder")
     protect = db.get_setting("restrict_link_sharing", "1")
+    auto_delete = db.get_setting("link_auto_delete", "1")
+    expiry_mins = db.get_setting("link_expiry_minutes", "3")
     
     deliv_label = "📺 Individual Links" if delivery_type == "individual" else "📂 Folder/Plan Link"
     protect_label = "🔒 Restricted (Protected)" if protect == "1" else "🔓 Allowed (Copy/Forward)"
+    auto_del_label = "🗑️ Enabled (Auto-Delete)" if auto_delete == "1" else "❌ Disabled (Keep Links)"
     
     text = f"{alert}\n\n" if alert else ""
     text += (
@@ -385,14 +388,43 @@ async def show_link_delivery_config_menu(query, alert=""):
         "   - _Individual Links_: Sends a clean set of buttons for each mapped channel.\n\n"
         f"• **Security (Copy/Forward Restriction)**: `{protect_label}`\n"
         "   - _Restricted_: Restricts copying, forwarding, and saving media of the link message.\n"
-        "   - _Allowed_: Standard message layout allowing sharing."
+        "   - _Allowed_: Standard message layout allowing sharing.\n\n"
+        f"• **Auto-Delete Link**: `{auto_del_label}`\n"
+        f"• **Link Expiry Timer**: `{expiry_mins} Minutes`\n"
     )
     
     buttons = [
         InlineKeyboardButton(f"🔄 Toggle Delivery (Current: {delivery_type.capitalize()})", callback_data="toggle_link_delivery_type"),
-        InlineKeyboardButton(f"🛡️ Toggle Protection (Current: {'Protected' if protect == '1' else 'Allowed'})", callback_data="toggle_restrict_link_sharing")
+        InlineKeyboardButton(f"🛡️ Toggle Protection (Current: {'Protected' if protect == '1' else 'Allowed'})", callback_data="toggle_restrict_link_sharing"),
+        InlineKeyboardButton(f"🗑️ Toggle Auto-Delete (Current: {'ON' if auto_delete == '1' else 'OFF'})", callback_data="toggle_link_auto_delete")
     ]
+    if auto_delete == "1":
+        buttons.append(InlineKeyboardButton("⏱ Configure Expiry Timer", callback_data="link_timer_config_menu"))
+        
     back_btn = InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    
+    await edit_message_safely(query, text, reply_markup)
+
+async def show_link_timer_config_menu(query, alert=""):
+    from utils.keyboard_helper import build_grid_keyboard
+    expiry_mins = db.get_setting("link_expiry_minutes", "3")
+    
+    text = f"{alert}\n\n" if alert else ""
+    text += (
+        "⏱ **Link Expiry Timer Settings** ⏱\n\n"
+        "Configure how long the Join Links stay active before being automatically deleted.\n\n"
+        f"**Current Setting**: `{expiry_mins} Minutes`\n\n"
+        "Select an option below to update:"
+    )
+    
+    buttons = [
+        InlineKeyboardButton("⏱ 1 Min", callback_data="set_link_exp_1"),
+        InlineKeyboardButton("⏱ 3 Mins", callback_data="set_link_exp_3"),
+        InlineKeyboardButton("⏱ 5 Mins", callback_data="set_link_exp_5"),
+        InlineKeyboardButton("⏱ 10 Mins", callback_data="set_link_exp_10"),
+    ]
+    back_btn = InlineKeyboardButton("🔙 Back to Link Options", callback_data="get_link_config_menu")
     reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
     
     await edit_message_safely(query, text, reply_markup)

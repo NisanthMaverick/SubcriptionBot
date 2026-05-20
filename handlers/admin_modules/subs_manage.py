@@ -6,7 +6,7 @@ from database import db
 from utils.formatters import build_premium_user_details, clean_username
 from utils.exporter import export_subscriptions_to_docx
 from handlers.admin_modules import SUB_REVOKE_REASON, ADMIN_MENTION_LINK
-from handlers.approval import delete_invite_link_job
+from handlers.approval import live_timer_update_job
 from handlers.user_modules import ADMIN_CONTACT_URL
 import json
 
@@ -216,10 +216,21 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
 
     plan_link = db.get_setting(f"plan_link_{sub['plan_id']}", "https://t.me/TamilanlinkssSubscription_bot")
 
+    auto_delete = db.get_setting("link_auto_delete", "1") == "1"
+    try:
+        expiry_mins = int(db.get_setting("link_expiry_minutes", "3"))
+    except:
+        expiry_mins = 3
+
+    if auto_delete:
+        timer_notice = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
+    else:
+        timer_notice = "✅ **NOTE**: This join link is yours to keep. However, it remains forward-restricted for security.\n\n"
+
     link_msg_text = (
         "🚨 **SECURE VIP CHANNEL INVITE** 🚨\n\n"
         "Use the protected button below to join your premium channel.\n\n"
-        "⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
+        f"{timer_notice}"
         "💬 If you face any issues or are unable to join the channel, please contact Admin via the button below directly."
     )
 
@@ -237,31 +248,42 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
             logger.warning(f"Could not load custom link buttons for plan {sub['plan_id']}: {e}")
 
     link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
+    reply_markup = InlineKeyboardMarkup(link_buttons)
+
+    initial_text = link_msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳") if auto_delete else link_msg_text
 
     try:
         sent_link = await context.bot.send_message(
             chat_id=sub["user_id"],
-            text=link_msg_text,
-            reply_markup=InlineKeyboardMarkup(link_buttons),
+            text=initial_text,
+            reply_markup=reply_markup,
             parse_mode="Markdown",
             protect_content=True,
             disable_web_page_preview=True
         )
 
-        if context.job_queue:
-            context.job_queue.run_once(
-                delete_invite_link_job,
-                when=180,
-                data={
-                    "chat_id": sub["user_id"],
-                    "message_id": sent_link.message_id,
-                    "admin_mention": ADMIN_MENTION_LINK
-                }
-            )
-            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!"
+        if auto_delete:
+            import time
+            if context.job_queue:
+                context.job_queue.run_repeating(
+                    live_timer_update_job,
+                    interval=5,
+                    first=5,
+                    data={
+                        "chat_id": sub["user_id"],
+                        "message_id": sent_link.message_id,
+                        "admin_mention": ADMIN_MENTION_LINK,
+                        "end_time": time.time() + (expiry_mins * 60),
+                        "original_text": link_msg_text,
+                        "reply_markup": reply_markup
+                    }
+                )
+                success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!"
+            else:
+                logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
+                success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - Scheduler Offline)"
         else:
-            logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
-            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - Scheduler Offline)"
+            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Auto-delete is disabled in settings)"
 
         await query.message.reply_text(success_text, disable_web_page_preview=True)
     except Exception as e:

@@ -208,7 +208,7 @@ def get_admin_handlers() -> list:
         raid_interval_conv,
         settings_import_conv,
         CallbackQueryHandler(toggle_payment_method, pattern="^toggle_pay_"),
-        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore|menu_admin_access|get_link_config_menu|toggle_link_delivery_type|toggle_restrict_link_sharing|menu_pay_methods)"),
+        CallbackQueryHandler(handle_menu_navigation, pattern="^(menu_main|menu_plans|menu_payment|menu_subs|menu_config|menu_status|menu_db_mgr|menu_db_clean|close_panel|list_|reset_upi_ids|db_warn_|db_exec_|del_plan_|welcome_|ep_resext_|chan_menu|raid_menu|menu_backup_restore|menu_admin_access|get_link_config_menu|toggle_link_delivery_type|toggle_restrict_link_sharing|toggle_link_auto_delete|set_link_exp_|link_timer_config_menu|menu_pay_methods)"),
         CallbackQueryHandler(show_remove_admin_list, pattern="^admin_remove_admin_list$"),
         CallbackQueryHandler(remove_admin_action, pattern=r"^admin_deladmin_\d+$"),
         CallbackQueryHandler(confirm_add_admin_role, pattern="^addadmin_role_(sub_admin|super_admin)$"),

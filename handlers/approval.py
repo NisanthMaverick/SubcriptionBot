@@ -384,11 +384,24 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
     protect = db.get_setting("restrict_link_sharing", "1") == "1"
     channels = db.get_channels_for_plan(sub['plan_id'])
 
+    auto_delete = db.get_setting("link_auto_delete", "1") == "1"
+    try:
+        expiry_mins = int(db.get_setting("link_expiry_minutes", "3"))
+    except:
+        expiry_mins = 3
+
+    if auto_delete:
+        timer_notice = f"⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
+        timer_notice_single = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
+    else:
+        timer_notice = "✅ **NOTE**: These join links are yours to keep. However, they remain forward-restricted for security.\n\n"
+        timer_notice_single = "✅ **NOTE**: This join link is yours to keep. However, it remains forward-restricted for security.\n\n"
+
     if delivery_type == "individual" and channels:
         link_msg_text = (
             "🚨 **SECURE VIP CHANNEL INVITES** 🚨\n\n"
             "Use the protected buttons below to join each premium channel in your plan.\n\n"
-            "⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
+            f"{timer_notice}"
             "💬 If you face any issues, please contact Admin via the button below directly."
         )
         link_buttons = []
@@ -399,7 +412,7 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
         link_msg_text = (
             "🚨 **SECURE VIP CHANNEL INVITE** 🚨\n\n"
             "Use the protected button below to join your premium channel.\n\n"
-            "⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in exactly 3 minutes (180 seconds)**. Please join immediately!\n\n"
+            f"{timer_notice_single}"
             "💬 If you face any issues or are unable to join the channel, please contact Admin via the button below directly."
         )
         link_buttons = [
@@ -417,53 +430,91 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
             logger.warning(f"Could not load custom link buttons for plan {sub['plan_id']}: {e}")
 
     link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
+    reply_markup = InlineKeyboardMarkup(link_buttons)
+
+    initial_text = link_msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳") if auto_delete else link_msg_text
 
     try:
         sent_link = await context.bot.send_message(
             chat_id=sub["user_id"],
-            text=link_msg_text,
-            reply_markup=InlineKeyboardMarkup(link_buttons),
+            text=initial_text,
+            reply_markup=reply_markup,
             parse_mode="Markdown",
             protect_content=protect,
             disable_web_page_preview=True
         )
 
-        # Schedule deletion job in 180 seconds
-        if context.job_queue:
-            context.job_queue.run_once(
-                delete_invite_link_job,
-                when=180,
-                data={
-                    "chat_id": sub["user_id"],
-                    "message_id": sent_link.message_id,
-                    "admin_mention": ADMIN_MENTION_LINK
-                }
-            )
-        else:
-            logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
+        if auto_delete:
+            import time
+            if context.job_queue:
+                context.job_queue.run_repeating(
+                    live_timer_update_job,
+                    interval=5,
+                    first=5,
+                    data={
+                        "chat_id": sub["user_id"],
+                        "message_id": sent_link.message_id,
+                        "admin_mention": ADMIN_MENTION_LINK,
+                        "end_time": time.time() + (expiry_mins * 60),
+                        "original_text": link_msg_text,
+                        "reply_markup": reply_markup
+                    }
+                )
+            else:
+                logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
     except Exception as e:
         logger.error(f"Failed to send secure join link to user: {e}")
 
-async def delete_invite_link_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+async def live_timer_update_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     job_data = context.job.data
     chat_id = job_data["chat_id"]
     msg_id = job_data["message_id"]
     admin_mention = job_data["admin_mention"]
+    end_time = job_data["end_time"]
+    original_text = job_data["original_text"]
+    reply_markup = job_data["reply_markup"]
+
+    import time
+    remaining = int(end_time - time.time())
+
+    if remaining <= 0:
+        # Time's up! Delete and cancel job
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete expired link message {msg_id}: {e}")
+        
+        followup_text = (
+            "⏳ **Invite Link Expired & Removed**\n\n"
+            "For VIP security reasons, your temporary channel join link has been automatically deleted.\n\n"
+            f"💬 If you experienced any difficulty or were unable to join the channel in time, please contact Admin {admin_mention} for direct manual access!"
+        )
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=followup_text, parse_mode="Markdown", disable_web_page_preview=True)
+        except Exception as e:
+            logger.warning(f"Failed to send link expiry followup to {chat_id}: {e}")
+            
+        context.job.schedule_removal()
+        return
+
+    # Update message text with remaining time
+    mins, secs = divmod(remaining, 60)
+    timer_line = f"⏳ **Auto-Deleting in: {mins:02d}:{secs:02d}** ⏳"
+    new_text = original_text.replace("{TIMER_PLACEHOLDER}", timer_line)
 
     try:
-        await context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        from telegram.error import BadRequest
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=msg_id,
+            text=new_text,
+            reply_markup=reply_markup,
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
     except Exception as e:
-        logger.warning(f"Failed to delete expired link message {msg_id}: {e}")
-
-    followup_text = (
-        "⏳ **Invite Link Expired & Removed**\n\n"
-        "For VIP security reasons, your temporary channel join link has been automatically deleted.\n\n"
-        f"💬 If you experienced any difficulty or were unable to join the channel within the 3 minutes, please contact Admin {admin_mention} for direct manual access!"
-    )
-    try:
-        await context.bot.send_message(chat_id=chat_id, text=followup_text, parse_mode="Markdown", disable_web_page_preview=True)
-    except Exception as e:
-        logger.warning(f"Failed to send link expiry followup to {chat_id}: {e}")
+        if "Message is not modified" not in str(e):
+            logger.warning(f"Failed to update timer message {msg_id}: {e}")
 
 def get_approval_handlers() -> list:
     return [
