@@ -50,11 +50,8 @@ class ConnectionManager:
 
         if not self._db_urls:
             env_primary = os.getenv("DATABASE_URL", DATABASE_URL)
-            env_secondary = os.getenv("DATABASE_URL_NEON", "")
             if env_primary and env_primary not in self._db_urls:
                 self._db_urls.append(env_primary)
-            if env_secondary and env_secondary not in self._db_urls:
-                self._db_urls.append(env_secondary)
             self._save_db_config()
 
         if not self._db_urls:
