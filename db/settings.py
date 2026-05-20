@@ -20,6 +20,16 @@ class SettingQueries(ConnectionManager):
         except Exception:
             return {}
 
+    def clear_settings(self) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("DELETE FROM settings")
+            except Exception:
+                pass
+
     def set_setting(self, key: str, value: str) -> None:
         for url in self._db_urls:
             if self._db_status.get(url) != "Online":

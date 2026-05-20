@@ -49,6 +49,26 @@ class ChannelQueries(ConnectionManager):
             except Exception:
                 pass
 
+    def clear_premium_channels(self) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("DELETE FROM premium_channels")
+            except Exception:
+                pass
+
+    def clear_channel_mappings(self) -> None:
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("DELETE FROM channel_mappings")
+            except Exception:
+                pass
+
     def add_channel_mapping(self, channel_id: int, plan_id: int) -> None:
         for url in self._db_urls:
             if self._db_status.get(url) != "Online":

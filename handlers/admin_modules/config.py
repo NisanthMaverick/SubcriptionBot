@@ -283,10 +283,19 @@ async def receive_import_file(update: Update, context: ContextTypes.DEFAULT_TYPE
         file_bytes = await file_obj.download_as_bytearray()
         import_data = json.loads(file_bytes.decode("utf-8"))
 
+        # Clear existing configurations to ensure a clean restore of everything
+        db.clear_settings()
+        db.clear_plans()
+        db.clear_premium_channels()
+        db.clear_channel_mappings()
+
         # Apply settings
         settings = import_data.get("settings", {})
         for k, v in settings.items():
             db.set_setting(k, v)
+        
+        # Seed defaults for any missing key
+        db._seed_default_settings()
 
         # Apply plans
         plans = import_data.get("plans", [])
@@ -297,7 +306,6 @@ async def receive_import_file(update: Update, context: ContextTypes.DEFAULT_TYPE
         channels = import_data.get("premium_channels", [])
         for c in channels:
             db.add_premium_channel(c["channel_id"], c["title"], c.get("invite_link", ""))
-            db.delete_channel_mappings(c["channel_id"])
 
         mappings = import_data.get("channel_mappings", [])
         for m in mappings:
