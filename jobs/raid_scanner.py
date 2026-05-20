@@ -108,6 +108,51 @@ async def auto_remove_user_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as e:
         logger.error(f"Failed to auto-remove user: {e}")
 
+async def get_raid_channel_link(bot, chat_id):
+    try:
+        chat = await bot.get_chat(chat_id)
+        if chat.username:
+            return f"https://t.me/{chat.username}"
+        if chat.invite_link:
+            return chat.invite_link
+        try:
+            link = await bot.export_chat_invite_link(chat_id)
+            if link:
+                return link
+        except Exception:
+            pass
+        cid_str = str(chat_id)
+        if cid_str.startswith("-100"):
+            return f"https://t.me/c/{cid_str[4:]}/999999999"
+    except Exception:
+        pass
+    return None
+
+def build_raid_results_keyboard(unauthorized_users, show_back=True):
+    buttons = []
+    if unauthorized_users:
+        buttons.append([InlineKeyboardButton("🚨 Remove all users from unauthorized channels", callback_data="raid_remove_all")])
+        
+        # Group by user_id
+        grouped = {}
+        for u in unauthorized_users:
+            uid = u["user_id"]
+            if uid not in grouped:
+                grouped[uid] = u
+        
+        for uid, u in grouped.items():
+            display_name = u["first_name"]
+            if len(display_name) > 15:
+                display_name = display_name[:12] + ".."
+            btn_text = f"👤 {display_name} (ID: {uid}) (❌ Manage)"
+            buttons.append([InlineKeyboardButton(btn_text, callback_data=f"raid_user_{uid}")])
+            
+    if show_back:
+        buttons.append([InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")])
+    else:
+        buttons.append([InlineKeyboardButton("❌ Close Menu", callback_data="raid_close_post")])
+    return InlineKeyboardMarkup(buttons)
+
 async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None) -> None:
     enabled = db.get_setting("raid_enabled", "0")
     unauthorized_users = []
@@ -144,52 +189,56 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     user_ids = db.get_all_unique_user_ids()
     if not user_ids:
         if admin_query:
-            try: await admin_query.edit_message_text("⚠️ No unique subscribers in the database to scan.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="raid_menu")]]))
+            try: await admin_query.edit_message_text("⚠️ No registered users found in the database to scan.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="raid_menu")]]))
             except Exception: pass
         return
 
-    raid_chan = db.get_setting("raid_channel_id", "")
-    if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        from config import RAID_CHANNEL
-        raid_chan = RAID_CHANNEL
-    if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        raid_chan = db.get_setting("log_channel_id", "")
-    if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
-        from config import ADMIN_ID
-        raid_chan = ADMIN_ID
-
-    tracking_msg = None
-    try:
-        tracking_msg = await context.bot.send_message(
-            chat_id=raid_chan,
-            text="🛡️ **Starting Live Raid Scan...**\nInitializing parameters..."
-        )
-    except Exception as e:
-        logger.warning(f"Raid tracking message could not be sent: {e}")
-
-    unauthorized_count = 0
-    checked_users_count = 0
     total_chans = len(channels)
     total_users = len(user_ids)
+    unauthorized_count = 0
+    checked_users_count = 0
 
-    for c_idx, channel in enumerate(channels, 1):
-        channel_id = channel["channel_id"]
-        channel_title = channel["title"]
+    # Start manual progress tracking if query exists
+    tracking_msg = None
+    if admin_query:
+        try:
+            tracking_msg = await context.bot.send_message(
+                chat_id=admin_query.message.chat_id,
+                text="🔄 Starting manual verification scan of premium channels..."
+            )
+        except Exception:
+            pass
+
+    for c_idx, chan in enumerate(channels, 1):
+        channel_id = chan["channel_id"]
+        channel_title = chan["title"]
 
         for u_idx, user_id in enumerate(user_ids, 1):
             checked_users_count += 1
-            username = f"User {user_id}"
-            first_name = "User"
+            # Retrieve user display name if possible
+            first_name = "Premium User"
+            username = "NoUsername"
+            try:
+                sub_rec = db.get_active_paid_subscriptions()
+                user_sub = next((s for s in sub_rec if s["user_id"] == user_id), None)
+                if user_sub:
+                    first_name = user_sub["username"]
+            except Exception:
+                pass
+
             try:
                 member = await context.bot.get_chat_member(chat_id=channel_id, user_id=user_id)
                 from telegram import ChatMember
+                if member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]:
+                    continue
+                
+                # Check status
                 if member.status in [ChatMember.MEMBER, ChatMember.RESTRICTED]:
                     username = member.user.username or "NoUsername"
                     first_name = member.user.first_name or "User"
                     
                     has_access = db.check_user_access_to_channel(user_id, channel_id)
-                    is_admin = member.status in [ChatMember.ADMINISTRATOR, ChatMember.OWNER]
-                    if not has_access and not is_admin:
+                    if not has_access:
                         unauthorized_count += 1
                         unauthorized_users.append({
                             "user_id": user_id,
@@ -198,14 +247,6 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                             "channel_id": channel_id,
                             "channel_title": channel_title
                         })
-                        await run_member_check(
-                            user_id=user_id,
-                            username=username,
-                            first_name=first_name,
-                            channel_id=channel_id,
-                            channel_title=channel_title,
-                            context=context
-                        )
             except Exception:
                 pass
 
@@ -220,17 +261,6 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                 if tracking_msg:
                     try: await tracking_msg.edit_text(status_text, parse_mode="Markdown")
                     except Exception: pass
-                if admin_query:
-                    try:
-                        await admin_query.edit_message_text(
-                            f"🔄 **Raid Scan in Progress...**\n\n"
-                            f"📺 **Channel**: `{channel_title}` ({c_idx}/{total_chans})\n"
-                            f"👤 **User**: `@{username}` ({u_idx}/{total_users})\n"
-                            f"🚨 **Unauthorized Found**: `{unauthorized_count}`\n\n"
-                            "⌛ Please wait...",
-                            parse_mode="Markdown"
-                        )
-                    except Exception: pass
             await asyncio.sleep(0.05)
 
     final_text = (
@@ -244,28 +274,73 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         except Exception: pass
 
     if admin_query:
-        context.user_data["unauthorized_users"] = unauthorized_users
+        import json
         try:
             if unauthorized_users:
-                text = (
-                    f"✅ **Raid Scan Finished!**\n\n"
-                    f"📺 Channels Checked: `{total_chans}`\n"
-                    f"👥 User Checks Run: `{checked_users_count}`\n"
-                    f"🚨 **Unauthorized Users Detected**: `{len(unauthorized_users)}`\n\n"
-                    f"👇 **Manage Unauthorized Users Below:**"
-                )
+                db.set_setting("temp_unauthorized_users", json.dumps(unauthorized_users))
                 
-                buttons = []
-                buttons.append([InlineKeyboardButton("🚨 Remove All Unauthorized Users", callback_data="raid_remove_all")])
+                # Check if raid channel is configured
+                raid_chan = db.get_setting("raid_channel_id", "")
+                if not raid_chan or raid_chan in ["Not Configured", "Not Set", "None", ""]:
+                    from config import RAID_CHANNEL
+                    raid_chan = RAID_CHANNEL
                 
-                for u in unauthorized_users:
-                    display_name = u["first_name"] if len(u["first_name"]) <= 12 else u["first_name"][:10] + ".."
-                    chan_name = u["channel_title"] if len(u["channel_title"]) <= 15 else u["channel_title"][:12] + ".."
-                    btn_text = f"👤 {display_name} in {chan_name} (❌ Remove)"
-                    buttons.append([InlineKeyboardButton(btn_text, callback_data=f"raid_remove_{u['channel_id']}_{u['user_id']}")])
+                is_raid_chan_configured = False
+                if raid_chan and raid_chan not in ["Not Configured", "Not Set", "None", ""]:
+                    is_raid_chan_configured = True
                 
-                buttons.append([InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")])
-                reply_markup = InlineKeyboardMarkup(buttons)
+                if is_raid_chan_configured:
+                    # Send full scan result to Raid Channel
+                    text = (
+                        f"✅ **Raid Scan Results**\n\n"
+                        f"📺 Channels Checked: `{total_chans}`\n"
+                        f"👥 User Checks Run: `{checked_users_count}`\n"
+                        f"🚨 **Unauthorized Users Detected**: `{len(unauthorized_users)}`\n\n"
+                        f"👇 **Manage Unauthorized Users Below:**"
+                    )
+                    try:
+                        await context.bot.send_message(
+                            chat_id=raid_chan,
+                            text=text,
+                            reply_markup=build_raid_results_keyboard(unauthorized_users, show_back=False),
+                            parse_mode="Markdown"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to send scan results to Raid Channel {raid_chan}: {e}")
+                    
+                    # Notify Admin in their chat
+                    admin_text = (
+                        f"✅ **Raid Scan Completed!**\n\n"
+                        f"📺 Channels Checked: `{total_chans}`\n"
+                        f"👥 User Checks Run: `{checked_users_count}`\n"
+                        f"🚨 **Unauthorized Users Detected**: `{len(unauthorized_users)}`\n\n"
+                        f"📢 Review card and quick-action buttons have been posted to the **Raid Channel**."
+                    )
+                    admin_buttons = []
+                    invite_link = await get_raid_channel_link(context.bot, raid_chan)
+                    if invite_link:
+                        admin_buttons.append([InlineKeyboardButton("📣 Go to Raid Channel", url=invite_link)])
+                    admin_buttons.append([InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")])
+                    
+                    await admin_query.edit_message_text(
+                        text=admin_text,
+                        reply_markup=InlineKeyboardMarkup(admin_buttons),
+                        parse_mode="Markdown"
+                    )
+                else:
+                    # No Raid Channel configured, show to admin directly
+                    text = (
+                        f"✅ **Raid Scan Finished!**\n\n"
+                        f"📺 Channels Checked: `{total_chans}`\n"
+                        f"👥 User Checks Run: `{checked_users_count}`\n"
+                        f"🚨 **Unauthorized Users Detected**: `{len(unauthorized_users)}`\n\n"
+                        f"👇 **Manage Unauthorized Users Below:**"
+                    )
+                    await admin_query.edit_message_text(
+                        text=text,
+                        reply_markup=build_raid_results_keyboard(unauthorized_users, show_back=True),
+                        parse_mode="Markdown"
+                    )
             else:
                 text = (
                     f"✅ **Raid Scan Finished!**\n\n"
@@ -274,13 +349,13 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                     f"🎉 **Zero unauthorized users found!** All users have active subscriptions."
                 )
                 reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]])
-                
-            await admin_query.edit_message_text(
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode="Markdown"
-            )
-        except Exception: pass
+                await admin_query.edit_message_text(
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+        except Exception as e:
+            logger.error(f"Error handling admin query after scan completion: {e}")
 
     if not admin_query:
         import time
