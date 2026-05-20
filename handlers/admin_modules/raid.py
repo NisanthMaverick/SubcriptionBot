@@ -349,12 +349,9 @@ async def handle_raid_user_menu(update: Update, context: ContextTypes.DEFAULT_TY
     if has_any_unremoved:
         buttons.append([InlineKeyboardButton("🚨 Remove this user from all channels", callback_data=f"raid_remuser_all_{user_id}")])
     
-    # 2. Individual channel removal buttons
+    # 2. Individual channel removal buttons (only show for unremoved channels)
     for u in user_entries:
-        if u.get("removed"):
-            btn_text = f"✅ Removed from {u['channel_title']}"
-            buttons.append([InlineKeyboardButton(btn_text, callback_data=f"raid_already_removed_{user_id}_{u['channel_id']}")])
-        else:
+        if not u.get("removed"):
             btn_text = f"❌ Remove from {u['channel_title']}"
             buttons.append([InlineKeyboardButton(btn_text, callback_data=f"raid_remuser_chan_{user_id}_{u['channel_id']}")])
         
