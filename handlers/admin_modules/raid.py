@@ -307,7 +307,10 @@ async def handle_raid_remove_all_action(update: Update, context: ContextTypes.DE
 
 async def handle_raid_user_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass
     
     user_id = int(query.data.split("_")[-1])
     
@@ -366,7 +369,10 @@ async def handle_raid_user_menu(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def handle_raid_user_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass
     
     import json
     data_str = db.get_setting("temp_unauthorized_users", "[]")
@@ -463,10 +469,8 @@ async def handle_raid_remuser_all(update: Update, context: ContextTypes.DEFAULT_
                 
     db.set_setting("temp_unauthorized_users", json.dumps(unauthorized))
     
-    await query.answer(f"Removed from {success_count} channels. Failed on {fail_count}.")
-    
-    query.data = "raid_user_list"
-    await handle_raid_user_list(update, context)
+    query.data = f"raid_user_{user_id}"
+    await handle_raid_user_menu(update, context)
 
 async def handle_raid_remuser_chan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -482,18 +486,20 @@ async def handle_raid_remuser_chan(update: Update, context: ContextTypes.DEFAULT
         unauthorized = json.loads(data_str)
     except Exception:
         unauthorized = []
-        
+    
+    removed_ok = False
     try:
         await context.bot.ban_chat_member(chat_id=channel_id, user_id=user_id)
         await context.bot.unban_chat_member(chat_id=channel_id, user_id=user_id)
-        await query.answer("Successfully removed user from channel!")
-        # Set removed flag
+        removed_ok = True
+    except Exception as e:
+        logger.error(f"Failed to remove user {user_id} from {channel_id}: {e}")
+    
+    # Set removed flag outside the try block so it always runs on success
+    if removed_ok:
         for u in unauthorized:
             if u["user_id"] == user_id and u["channel_id"] == channel_id:
                 u["removed"] = True
-    except Exception as e:
-        logger.error(f"Failed to remove user {user_id} from {channel_id}: {e}")
-        await query.answer(f"Failed to remove user: {e}", show_alert=True)
         
     db.set_setting("temp_unauthorized_users", json.dumps(unauthorized))
     

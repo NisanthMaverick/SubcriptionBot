@@ -196,6 +196,38 @@ async def confirm_add_admin_duration(update: Update, context: ContextTypes.DEFAU
     reply_markup = build_grid_keyboard([], back_button=back_btn)
     
     await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+    
+    # Notify the promoted user
+    try:
+        user_notify = (
+            "🎉 **You have been promoted to Sub-Admin!** 🎉\n\n"
+            f"🕒 **Access Duration**: {dur_desc}\n\n"
+            "You now have full management rights including:\n"
+            "• 👥 User & subscriber management\n"
+            "• 🛡️ Raid protection controls\n"
+            "• 📺 Access to all premium channels\n\n"
+            "⚡ Use /start to access the admin panel."
+        )
+        await context.bot.send_message(chat_id=new_admin_id, text=user_notify, parse_mode="Markdown")
+    except Exception as e:
+        logger.warning(f"Could not notify new admin {new_admin_id}: {e}")
+    
+    # Log to log channel
+    log_chan = db.get_setting("log_channel_id", "")
+    if log_chan and log_chan not in ["Not Configured", "Not Set", "None", ""]:
+        try:
+            log_text = (
+                "🔑 **Admin Access Update** 🔑\n\n"
+                f"✅ **Action**: Promoted to Sub-Admin\n"
+                f"👤 **User**: {first_name} (@{username})\n"
+                f"🆔 **User ID**: `{new_admin_id}`\n"
+                f"🕒 **Duration**: {dur_desc}\n"
+                f"📅 **Date**: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            )
+            await context.bot.send_message(chat_id=log_chan, text=log_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.warning(f"Failed to log admin promotion to log channel: {e}")
+    
     context.user_data.clear()
 
 async def show_remove_admin_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -240,15 +272,54 @@ async def remove_admin_action(update: Update, context: ContextTypes.DEFAULT_TYPE
         admins = json.loads(admins_str)
     except Exception:
         admins = []
-        
+    
+    # Find the admin info before removing
+    removed_admin = None
+    for a in admins:
+        if int(a.get("user_id", 0)) == target_id:
+            removed_admin = a
+            break
+    
     updated_admins = [a for a in admins if int(a.get("user_id", 0)) != target_id]
     db.set_setting("additional_admins", json.dumps(updated_admins))
     
+    removed_name = removed_admin.get("first_name", "Admin") if removed_admin else "Admin"
+    removed_username = removed_admin.get("username", "") if removed_admin else ""
+    
     await query.edit_message_text(
-        f"✅ Administrative rights for User ID `{target_id}` have been revoked.",
+        f"✅ Administrative rights for **{removed_name}** (ID: `{target_id}`) have been revoked.",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Admin Access", callback_data="menu_admin_access")]]),
         parse_mode="Markdown"
     )
+    
+    # Notify the removed user
+    try:
+        user_notify = (
+            "⚠️ **Your Admin Access has been Revoked** ⚠️\n\n"
+            "Your sub-admin privileges have been removed by the Owner.\n\n"
+            "You no longer have access to:\n"
+            "• 👥 User & subscriber management\n"
+            "• 🛡️ Raid protection controls\n\n"
+            "If you believe this is a mistake, please contact the Owner."
+        )
+        await context.bot.send_message(chat_id=target_id, text=user_notify, parse_mode="Markdown")
+    except Exception as e:
+        logger.warning(f"Could not notify removed admin {target_id}: {e}")
+    
+    # Log to log channel
+    log_chan = db.get_setting("log_channel_id", "")
+    if log_chan and log_chan not in ["Not Configured", "Not Set", "None", ""]:
+        try:
+            log_text = (
+                "🔑 **Admin Access Update** 🔑\n\n"
+                f"❌ **Action**: Removed from Sub-Admin\n"
+                f"👤 **User**: {removed_name} (@{removed_username})\n"
+                f"🆔 **User ID**: `{target_id}`\n"
+                f"📅 **Date**: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            )
+            await context.bot.send_message(chat_id=log_chan, text=log_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.warning(f"Failed to log admin removal to log channel: {e}")
 
 async def cancel_admin_access_flow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
