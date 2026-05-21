@@ -117,33 +117,41 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await edit_message_or_reply(update, translate_text(msg, lang), reply_markup=reply_markup)
         return ConversationHandler.END
 
-    text = "📦 **Plans & Prices** 📦\n━━━━━━━━━━━━━━━\n\n"
+    text = "🌟 **Exclusive Premium Plans** 🌟\n━━━━━━━━━━━━━━━━━━━━\n\n"
     keyboard = []
 
     for plan in plans:
-        text += f"**{plan['name']}**\n\n"
+        text += f"✨ **{plan['name']}** ✨\n"
         if plan['description'] and plan['description'] != plan['name']:
-            text += f"{plan['description']}\n\n"
+            text += f"📝 _{plan['description']}_\n\n"
+        else:
+            text += "\n"
 
+        text += "💎 **Pricing:**\n"
         for d in plan['durations']:
             dur_name = d.get('duration', '')
             dur_price = d.get('price', '')
-            text += f"💰 {dur_name} – {dur_price}\n"
+            text += f" 🔹 {dur_name} ➔ **{dur_price}**\n"
 
         channels = await asyncio.to_thread(db.get_channels_for_plan, plan['plan_id'])
         if channels:
             chan_count = len(channels)
-            from utils.telegraph_helper import get_telegraph_link_for_plan
-            import asyncio
-            # We can run the telegraph page creation in a separate thread so it doesn't block
-            # Actually, to make it super fast, we should just fire and forget if not cached, 
-            # but wait, we need the url NOW to format the text!
-            # Since get_telegraph_link_for_plan makes a network call, we use asyncio.to_thread
-            t_url = await asyncio.to_thread(get_telegraph_link_for_plan, plan['name'], channels)
-            if t_url:
-                text += f"🔗 [View {chan_count} Premium Channel{'s' if chan_count > 1 else ''}]({t_url})\n\n"
+            text += f"\n📺 **Included Channels ({chan_count}):**\n"
+            
+            display_limit = 10
+            for c in channels[:display_limit]:
+                text += f"  • {c['title']}\n"
+            
+            if chan_count > display_limit:
+                from utils.telegraph_helper import get_telegraph_link_for_plan
+                import asyncio
+                t_url = await asyncio.to_thread(get_telegraph_link_for_plan, plan['name'], channels)
+                if t_url:
+                    text += f"  • [🔗 And {chan_count - display_limit} more... (Click to view)]({t_url})\n"
+                else:
+                    text += f"  • _And {chan_count - display_limit} more..._\n"
 
-        text += "━━━━━━━━━━━━━━━\n\n"
+        text += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
 
         clean_btn_name = plan['name'].split("\n")[0][:40]
         keyboard.append([InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}")])
