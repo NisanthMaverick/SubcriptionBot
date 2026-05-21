@@ -5,11 +5,31 @@ from db.connection import ConnectionManager
 
 logger = logging.getLogger(__name__)
 
+import time
+
+_settings_cache = {}
+_settings_cache_time = 0
+
 class SettingQueries(ConnectionManager):
     def get_setting(self, key: str, default: Any = None) -> Any:
+        global _settings_cache, _settings_cache_time
+        if time.time() - _settings_cache_time > 300:
+            try:
+                rows = self._run_read_query("SELECT key, value FROM settings")
+                _settings_cache = {row[0]: row[1] for row in rows}
+                _settings_cache_time = time.time()
+            except Exception:
+                pass
+                
+        if key in _settings_cache:
+            return _settings_cache[key]
+            
         try:
             row = self._run_read_query_one("SELECT value FROM settings WHERE key = %s", (key,))
-            return row[0] if row else default
+            if row:
+                _settings_cache[key] = row[0]
+                return row[0]
+            return default
         except Exception:
             return default
 
@@ -31,6 +51,9 @@ class SettingQueries(ConnectionManager):
                 pass
 
     def set_setting(self, key: str, value: str) -> None:
+        global _settings_cache
+        _settings_cache[key] = str(value)
+        
         for url in self._db_urls:
             if self._db_status.get(url) != "Online":
                 continue

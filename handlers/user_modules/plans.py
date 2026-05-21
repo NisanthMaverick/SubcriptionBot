@@ -135,15 +135,41 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         text += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
 
         clean_btn_name = plan['name'].split("\n")[0][:40]
+        # We don't add plan buttons here anymore, just construct the text.
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🛍️ Buy Premium", callback_data="buy_premium_menu"),
+            InlineKeyboardButton("📺 View Channels", callback_data="view_channels_menu")
+        ],
+        [InlineKeyboardButton("👤 Contact Admin", url=ADMIN_CONTACT_URL)]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
+    return USER_DURATION
+
+async def show_buy_premium_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    lang = query.from_user.language_code
+    
+    import asyncio
+    plans = await asyncio.to_thread(db.get_all_plans)
+    
+    text = "🛍️ **Select a Premium Plan to Buy** 🛍️\n━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "Choose the subscription plan you wish to purchase from the options below."
+    
+    plan_buttons = []
+    for plan in plans:
+        clean_btn_name = plan['name'].split("\n")[0][:40]
         plan_buttons.append(InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}"))
 
     keyboard = []
     for i in range(0, len(plan_buttons), 2):
         keyboard.append(plan_buttons[i:i+2])
-
-    view_channels_btn = InlineKeyboardButton("📺 View Channels", callback_data="view_channels_menu")
-    contact_btn = InlineKeyboardButton("👤 Contact Admin", url=ADMIN_CONTACT_URL)
-    keyboard.append([view_channels_btn, contact_btn])
+        
+    keyboard.append([InlineKeyboardButton("🔙 Back to Plans", callback_data="select_plans_menu")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
