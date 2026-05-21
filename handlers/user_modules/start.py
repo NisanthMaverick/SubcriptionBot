@@ -178,27 +178,32 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     user_clean = clean_username(user.first_name or user.username or "User")
-    is_new_user = db.add_user(user.id, user.username or "", user.first_name or "")
     profile_link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
-    log_chan = db.get_setting("log_channel_id", LOG_CHANNEL)
+    
+    import asyncio
+    async def process_new_user():
+        try:
+            is_new_user = await asyncio.to_thread(db.add_user, user.id, user.username or "", user.first_name or "")
+            log_chan = await asyncio.to_thread(db.get_setting, "log_channel_id", LOG_CHANNEL)
+            
+            if is_new_user:
+                start_log_msg = (
+                    "👤 **NEW USER STARTED BOT** 👤\n\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    f"👤 **User Name** : [{user_clean}]({profile_link})\n\n"
+                    f"🆔 **User ID** : `{user.id}`\n\n"
+                    f"🔗 **Profile Link** : [Click Here]({profile_link})\n\n"
+                    f"🌐 **Language** : {lang.upper()}\n\n"
+                    "━━━━━━━━━━━━━━━"
+                )
+                if log_chan and log_chan not in ["Not Configured", "Not Set", "None", ""]:
+                    await context.bot.send_message(chat_id=log_chan, text=start_log_msg, parse_mode="Markdown", disable_web_page_preview=True)
+        except Exception as e:
+            logger.info(f"Failed to process/log user start: {e}")
 
-    if is_new_user:
-        start_log_msg = (
-            "👤 **NEW USER STARTED BOT** 👤\n\n"
-            "━━━━━━━━━━━━━━━\n"
-            f"👤 **User Name** : [{user_clean}]({profile_link})\n\n"
-            f"🆔 **User ID** : `{user.id}`\n\n"
-            f"🔗 **Profile Link** : [Click Here]({profile_link})\n\n"
-            f"🌐 **Language** : {lang.upper()}\n\n"
-            "━━━━━━━━━━━━━━━"
-        )
-        if log_chan and log_chan not in ["Not Configured", "Not Set", "None", ""]:
-            try:
-                await context.bot.send_message(chat_id=log_chan, text=start_log_msg, parse_mode="Markdown", disable_web_page_preview=True)
-            except Exception as e:
-                logger.info(f"Failed to log user start to channel: {e}")
+    asyncio.create_task(process_new_user())
 
-    custom_welcome = db.get_setting("welcome_msg_text")
+    custom_welcome = await asyncio.to_thread(db.get_setting, "welcome_msg_text")
     if custom_welcome:
         welcome_msg = custom_welcome
     else:
@@ -211,7 +216,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
 
     keyboard = []
-    custom_btns = db.get_setting("welcome_custom_buttons")
+    custom_btns = await asyncio.to_thread(db.get_setting, "welcome_custom_buttons")
     if custom_btns:
         try:
             btns_list = json.loads(custom_btns)

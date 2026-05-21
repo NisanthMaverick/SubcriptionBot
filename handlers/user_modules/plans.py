@@ -107,7 +107,8 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await update.message.reply_text(msg, parse_mode="Markdown")
             return ConversationHandler.END
 
-    plans = db.get_all_plans()
+    import asyncio
+    plans = await asyncio.to_thread(db.get_all_plans)
 
     if not plans:
         msg = f"📭 There are currently no active subscription plans available. Please check back later or contact Admin {ADMIN_MENTION_LINK}!"
@@ -129,16 +130,23 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             dur_price = d.get('price', '')
             text += f"💰 {dur_name} – {dur_price}\n"
 
-        text += "\n━━━━━━━━━━━━━━━\n\n"
+        channels = await asyncio.to_thread(db.get_channels_for_plan, plan['plan_id'])
+        if channels:
+            chan_count = len(channels)
+            from utils.telegraph_helper import get_telegraph_link_for_plan
+            import asyncio
+            # We can run the telegraph page creation in a separate thread so it doesn't block
+            # Actually, to make it super fast, we should just fire and forget if not cached, 
+            # but wait, we need the url NOW to format the text!
+            # Since get_telegraph_link_for_plan makes a network call, we use asyncio.to_thread
+            t_url = await asyncio.to_thread(get_telegraph_link_for_plan, plan['name'], channels)
+            if t_url:
+                text += f"🔗 [View {chan_count} Premium Channel{'s' if chan_count > 1 else ''}]({t_url})\n\n"
+
+        text += "━━━━━━━━━━━━━━━\n\n"
 
         clean_btn_name = plan['name'].split("\n")[0][:40]
         keyboard.append([InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}")])
-
-        channels = db.get_channels_for_plan(plan['plan_id'])
-        if channels:
-            chan_count = len(channels)
-            chan_btn = InlineKeyboardButton(f"🔗 {chan_count} Premium Channel{'s' if chan_count > 1 else ''} (Click to view)", callback_data=f"plan_channels_{plan['plan_id']}")
-            keyboard.append([chan_btn])
 
     contact_btn = InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)
     keyboard.append([contact_btn])
