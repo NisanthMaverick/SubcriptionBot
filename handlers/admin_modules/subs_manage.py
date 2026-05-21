@@ -218,16 +218,12 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
 
     plan_link = db.get_setting(f"plan_link_{sub['plan_id']}", "https://t.me/TamilanlinkssSubscription_bot")
 
-    auto_delete = db.get_setting("link_auto_delete", "1") == "1"
     try:
         expiry_mins = int(db.get_setting("link_expiry_minutes", "3"))
     except:
         expiry_mins = 3
 
-    if auto_delete:
-        timer_notice = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
-    else:
-        timer_notice = "✅ **NOTE**: This join link is yours to keep. However, it remains forward-restricted for security.\n\n"
+    timer_notice = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
 
     link_msg_text = (
         "🚨 **SECURE VIP CHANNEL INVITE** 🚨\n\n"
@@ -252,7 +248,7 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
     link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
     reply_markup = InlineKeyboardMarkup(link_buttons)
 
-    initial_text = link_msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳") if auto_delete else link_msg_text
+    initial_text = link_msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳")
 
     try:
         sent_link = await context.bot.send_message(
@@ -264,28 +260,25 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
             disable_web_page_preview=True
         )
 
-        if auto_delete:
-            import time
-            if context.job_queue:
-                context.job_queue.run_repeating(
-                    live_timer_update_job,
-                    interval=5,
-                    first=5,
-                    data={
-                        "chat_id": sub["user_id"],
-                        "message_id": sent_link.message_id,
-                        "admin_mention": ADMIN_MENTION_LINK,
-                        "end_time": time.time() + (expiry_mins * 60),
-                        "original_text": link_msg_text,
-                        "reply_markup": reply_markup
-                    }
-                )
-                success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!"
-            else:
-                logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
-                success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - Scheduler Offline)"
+        import time
+        jq = context.job_queue or context.application.job_queue
+        if jq:
+            jq.run_repeating(
+                live_timer_update_job,
+                interval=5,
+                first=5,
+                data={
+                    "chat_id": sub["user_id"],
+                    "message_id": sent_link.message_id,
+                    "admin_mention": ADMIN_MENTION_LINK,
+                    "end_time": time.time() + (expiry_mins * 60),
+                    "original_text": link_msg_text,
+                    "reply_markup": reply_markup
+                }
+            )
+            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!"
         else:
-            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Auto-delete is disabled in settings)"
+            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - Scheduler Offline)"
 
         await query.message.reply_text(success_text, disable_web_page_preview=True)
     except Exception as e:
@@ -307,10 +300,18 @@ async def admin_send_ind_links_callback(update: Update, context: ContextTypes.DE
         await query.message.reply_text("⚠️ No individual channels configured/mapped for this plan.", disable_web_page_preview=True)
         return
 
+    try:
+        expiry_mins = int(db.get_setting("link_expiry_minutes", "3"))
+    except:
+        expiry_mins = 3
+
+    timer_notice = f"⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
+
     msg_text = (
         "💎 **INDIVIDUAL VIP CHANNEL ACCESS** 💎\n\n"
         "The Administrator has dispatched individual invite links for each channel included in your plan.\n\n"
         "👇 **Click the buttons below to join each channel**:\n\n"
+        f"{timer_notice}"
         "💬 *If you experience any difficulties or have questions, contact the Admin directly.*"
     )
 
@@ -319,18 +320,35 @@ async def admin_send_ind_links_callback(update: Update, context: ContextTypes.DE
         link_buttons.append([InlineKeyboardButton(f"📺 Join {c['title']}", url=c['invite_link'])])
 
     link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
-
+    
+    initial_text = msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳")
+    
     try:
-        await context.bot.send_message(
+        sent_link = await context.bot.send_message(
             chat_id=sub["user_id"],
-            text=msg_text,
+            text=initial_text,
             reply_markup=InlineKeyboardMarkup(link_buttons),
             parse_mode="Markdown",
             protect_content=True,
             disable_web_page_preview=True
         )
+        
+        import time
+        jq = context.job_queue or context.application.job_queue
+        jq.run_repeating(
+            live_timer_update_job,
+            interval=5,
+            first=5,
+            data={
+                "chat_id": sub["user_id"],
+                "message_id": sent_link.message_id,
+                "admin_mention": ADMIN_MENTION_LINK,
+                "end_time": time.time() + (expiry_mins * 60),
+                "original_text": msg_text,
+                "reply_markup": InlineKeyboardMarkup(link_buttons)
+            }
+        )
         await query.message.reply_text(f"✅ Individual invite links successfully sent to user `{sub['user_id']}` (restricted and secure)!", disable_web_page_preview=True)
     except Exception as e:
         logger.error(f"Failed to send individual links to user: {e}")
         await query.message.reply_text(f"❌ Failed to send links to user. They might have blocked the bot.", disable_web_page_preview=True)
-

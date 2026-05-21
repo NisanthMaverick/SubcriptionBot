@@ -386,18 +386,13 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
     protect = db.get_setting("restrict_link_sharing", "1") == "1"
     channels = db.get_channels_for_plan(sub['plan_id'])
 
-    auto_delete = db.get_setting("link_auto_delete", "1") == "1"
     try:
         expiry_mins = int(db.get_setting("link_expiry_minutes", "3"))
     except:
         expiry_mins = 3
 
-    if auto_delete:
-        timer_notice = f"⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
-        timer_notice_single = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
-    else:
-        timer_notice = "✅ **NOTE**: These join links are yours to keep. However, they remain forward-restricted for security.\n\n"
-        timer_notice_single = "✅ **NOTE**: This join link is yours to keep. However, it remains forward-restricted for security.\n\n"
+    timer_notice = f"⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
+    timer_notice_single = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
 
     if delivery_type == "individual" and channels:
         link_msg_text = (
@@ -434,7 +429,7 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
     link_buttons.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
     reply_markup = InlineKeyboardMarkup(link_buttons)
 
-    initial_text = link_msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳") if auto_delete else link_msg_text
+    initial_text = link_msg_text.replace("{TIMER_PLACEHOLDER}", f"⏳ **Auto-Deleting in: {expiry_mins:02d}:00** ⏳")
 
     try:
         sent_link = await context.bot.send_message(
@@ -446,24 +441,24 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
             disable_web_page_preview=True
         )
 
-        if auto_delete:
-            import time
-            if context.job_queue:
-                context.job_queue.run_repeating(
-                    live_timer_update_job,
-                    interval=5,
-                    first=5,
-                    data={
-                        "chat_id": sub["user_id"],
-                        "message_id": sent_link.message_id,
-                        "admin_mention": ADMIN_MENTION_LINK,
-                        "end_time": time.time() + (expiry_mins * 60),
-                        "original_text": link_msg_text,
-                        "reply_markup": reply_markup
-                    }
-                )
-            else:
-                logger.warning("JobQueue is not active. Automatic link deletion will not be scheduled.")
+        import time
+        jq = context.job_queue or context.application.job_queue
+        if jq:
+            jq.run_repeating(
+                live_timer_update_job,
+                interval=5,
+                first=5,
+                data={
+                    "chat_id": sub["user_id"],
+                    "message_id": sent_link.message_id,
+                    "admin_mention": ADMIN_MENTION_LINK,
+                    "end_time": time.time() + (expiry_mins * 60),
+                    "original_text": link_msg_text,
+                    "reply_markup": reply_markup
+                }
+            )
+        else:
+            logger.error("Failed to schedule auto-delete because job_queue is entirely missing from application.")
     except Exception as e:
         logger.error(f"Failed to send secure join link to user: {e}")
 
