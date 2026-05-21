@@ -1,4 +1,14 @@
 from deep_translator import GoogleTranslator
+from functools import lru_cache
+
+@lru_cache(maxsize=1024)
+def _do_translate(text: str, target_lang: str) -> str:
+    try:
+        translated = GoogleTranslator(source='auto', target=target_lang).translate(text)
+        return translated if translated else text
+    except Exception:
+        # Graceful fallback on network or API failure
+        return text
 
 def translate_text(text: str, target_lang: str) -> str:
     """
@@ -11,9 +21,4 @@ def translate_text(text: str, target_lang: str) -> str:
     # Extract primary language subtag (e.g., 'en-US' -> 'en')
     lang = target_lang.split('-')[0].lower()
     
-    try:
-        translated = GoogleTranslator(source='auto', target=lang).translate(text)
-        return translated if translated else text
-    except Exception:
-        # Graceful fallback on network or API failure
-        return text
+    return _do_translate(text, lang)

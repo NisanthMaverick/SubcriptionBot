@@ -117,7 +117,7 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return ConversationHandler.END
 
     text = "📦 **Plans & Prices** 📦\n━━━━━━━━━━━━━━━\n\n"
-    buttons = []
+    keyboard = []
 
     for plan in plans:
         text += f"**{plan['name']}**\n\n"
@@ -132,11 +132,39 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         text += "\n━━━━━━━━━━━━━━━\n\n"
 
         clean_btn_name = plan['name'].split("\n")[0][:40]
-        buttons.append(InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}"))
+        keyboard.append([InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}")])
 
-    reply_markup = build_grid_keyboard(buttons)
+        channels = db.get_channels_for_plan(plan['plan_id'])
+        if channels:
+            chan_count = len(channels)
+            chan_btn = InlineKeyboardButton(f"🔗 {chan_count} Premium Channel{'s' if chan_count > 1 else ''} (Click to view)", callback_data=f"plan_channels_{plan['plan_id']}")
+            keyboard.append([chan_btn])
+
+    contact_btn = InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)
+    keyboard.append([contact_btn])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
     return USER_DURATION
+
+async def handle_plan_channels(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    lang = query.from_user.language_code
+    plan_id = int(query.data.split("_")[-1])
+    channels = db.get_channels_for_plan(plan_id)
+    
+    if not channels:
+        await query.answer(translate_text("No channels configured for this plan.", lang), show_alert=True)
+        return
+        
+    text = f"Channels ({len(channels)}):\n\n"
+    for c in channels:
+        text += f"🔹 {c['title']}\n"
+        
+    if len(text) > 190:
+        text = text[:187] + "..."
+        
+    await query.answer(text, show_alert=True)
 
 async def handle_plan_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
