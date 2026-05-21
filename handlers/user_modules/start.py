@@ -225,8 +225,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         except Exception as e:
             logger.warning(f"Could not load custom welcome buttons: {e}")
 
-    keyboard.append([InlineKeyboardButton("📦 Browse Premium Plans", callback_data="select_plans_menu")])
-    keyboard.append([InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)])
+    keyboard.append([
+        InlineKeyboardButton("📦 Browse Plans", callback_data="select_plans_menu"),
+        InlineKeyboardButton("👤 Contact Admin", url=ADMIN_CONTACT_URL)
+    ])
 
     try:
         await update.message.reply_text(
