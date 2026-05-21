@@ -118,8 +118,7 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return ConversationHandler.END
 
     text = "🌟 **Exclusive Premium Plans** 🌟\n━━━━━━━━━━━━━━━━━━━━\n\n"
-    keyboard = []
-
+    plan_buttons = []
     for plan in plans:
         text += f"✨ **{plan['name']}** ✨\n"
         if plan['description'] and plan['description'] != plan['name']:
@@ -136,13 +135,15 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         text += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
 
         clean_btn_name = plan['name'].split("\n")[0][:40]
-        keyboard.append([InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}")])
+        plan_buttons.append(InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}"))
 
-    view_channels_btn = InlineKeyboardButton("📺 View Channels by Plan", callback_data="view_channels_menu")
-    keyboard.append([view_channels_btn])
+    keyboard = []
+    for i in range(0, len(plan_buttons), 2):
+        keyboard.append(plan_buttons[i:i+2])
 
-    contact_btn = InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)
-    keyboard.append([contact_btn])
+    view_channels_btn = InlineKeyboardButton("📺 View Channels", callback_data="view_channels_menu")
+    contact_btn = InlineKeyboardButton("👤 Contact Admin", url=ADMIN_CONTACT_URL)
+    keyboard.append([view_channels_btn, contact_btn])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
