@@ -133,28 +133,13 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             dur_price = d.get('price', '')
             text += f" 🔹 {dur_name} ➔ **{dur_price}**\n"
 
-        channels = await asyncio.to_thread(db.get_channels_for_plan, plan['plan_id'])
-        if channels:
-            chan_count = len(channels)
-            text += f"\n📺 **Included Channels ({chan_count}):**\n"
-            
-            display_limit = 10
-            for c in channels[:display_limit]:
-                text += f"  • {c['title']}\n"
-            
-            if chan_count > display_limit:
-                from utils.telegraph_helper import get_telegraph_link_for_plan
-                import asyncio
-                t_url = await asyncio.to_thread(get_telegraph_link_for_plan, plan['name'], channels)
-                if t_url:
-                    text += f"  • [🔗 And {chan_count - display_limit} more... (Click to view)]({t_url})\n"
-                else:
-                    text += f"  • _And {chan_count - display_limit} more..._\n"
-
         text += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
 
         clean_btn_name = plan['name'].split("\n")[0][:40]
         keyboard.append([InlineKeyboardButton(clean_btn_name, callback_data=f"select_plan_{plan['plan_id']}")])
+
+    view_channels_btn = InlineKeyboardButton("📺 View Channels by Plan", callback_data="view_channels_menu")
+    keyboard.append([view_channels_btn])
 
     contact_btn = InlineKeyboardButton("👤 Contact Admin 🦋 ༄Nìśẳntℎ༄ 🦋", url=ADMIN_CONTACT_URL)
     keyboard.append([contact_btn])
@@ -163,24 +148,60 @@ async def show_plans_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
     return USER_DURATION
 
-async def handle_plan_channels(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def view_channels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
+    await query.answer()
+    lang = query.from_user.language_code
+    
+    import asyncio
+    plans = await asyncio.to_thread(db.get_all_plans)
+    
+    text = "📺 **Select a Plan to View Channels** 📺\n━━━━━━━━━━━━━━━━━━━━\n\n"
+    text += "Choose a subscription plan below to see the list of premium channels included with it."
+    
+    keyboard = []
+    for plan in plans:
+        clean_btn_name = plan['name'].split("\n")[0][:40]
+        keyboard.append([InlineKeyboardButton(clean_btn_name, callback_data=f"view_channels_plan_{plan['plan_id']}")])
+        
+    keyboard.append([InlineKeyboardButton("🔙 Back to Plans", callback_data="select_plans_menu")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
+    return USER_DURATION
+
+async def view_channels_for_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
     lang = query.from_user.language_code
     plan_id = int(query.data.split("_")[-1])
-    channels = db.get_channels_for_plan(plan_id)
     
-    if not channels:
-        await query.answer(translate_text("No channels configured for this plan.", lang), show_alert=True)
-        return
+    import asyncio
+    plan = await asyncio.to_thread(db.get_plan, plan_id)
+    if not plan:
+        await query.message.reply_text(translate_text("❌ Selected plan is no longer available.", lang))
+        return USER_DURATION
         
-    text = f"Channels ({len(channels)}):\n\n"
-    for c in channels:
-        text += f"🔹 {c['title']}\n"
+    channels = await asyncio.to_thread(db.get_channels_for_plan, plan_id)
+    
+    text = f"📺 **Channels Included in:**\n✨ **{plan['name']}** ✨\n━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    if channels:
+        for i, c in enumerate(channels, 1):
+            text += f"🔹 {i}. {c['title']}\n"
+    else:
+        text += "📝 _No channels have been configured for this plan yet._\n"
         
-    if len(text) > 190:
-        text = text[:187] + "..."
-        
-    await query.answer(text, show_alert=True)
+    text += "\n━━━━━━━━━━━━━━━━━━━━"
+    
+    keyboard = [
+        [InlineKeyboardButton("🔙 Back to Plan Selection", callback_data="view_channels_menu")],
+        [InlineKeyboardButton("📦 Browse All Plans", callback_data="select_plans_menu")]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)
+    return USER_DURATION
 
 async def handle_plan_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
