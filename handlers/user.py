@@ -1,6 +1,6 @@
 from telegram.ext import ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from handlers.user_modules import USER_DURATION, USER_PAYMENT_UPLOAD
-from handlers.user_modules.start import start_command
+from handlers.user_modules.start import start_command, id_command
 from handlers.user_modules.plans import (
     plan_command, show_plans_list, handle_plan_selection, handle_duration_selection,
     show_payment_qr, show_payment_upi, show_payment_app, handle_back_to_durations,
@@ -42,5 +42,6 @@ def get_user_handlers() -> list:
 
     return [
         CommandHandler("start", start_command),
+        CommandHandler("id", id_command),
         plan_conv
     ]

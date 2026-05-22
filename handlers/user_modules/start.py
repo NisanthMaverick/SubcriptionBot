@@ -248,3 +248,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             )
         else:
             raise e
+
+async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    lang = user.language_code if user else "en"
+    
+    user_clean = clean_username(user.first_name or user.username or "User")
+    profile_link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
+    
+    msg = (
+        "🆔 **Your Telegram ID Details** 🆔\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"👤 **User:** [{user_clean}]({profile_link})\n"
+        f"🔢 **ID:** `{user.id}`\n\n"
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
+    
+    await update.message.reply_text(
+        translate_text(msg, lang),
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
