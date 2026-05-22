@@ -259,7 +259,7 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     msg = (
         "🆔 **Your Telegram ID Details** 🆔\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"👤 **User:** [{user_clean}]({profile_link})\n"
+        f"👤 **User:** [{user_clean}]({profile_link})\n\n"
         f"🔢 **ID:** `{user.id}`\n\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
