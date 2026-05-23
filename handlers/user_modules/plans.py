@@ -325,11 +325,12 @@ async def show_payment_qr(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     duration = context.user_data["selected_duration"]
     price = context.user_data["selected_price"]
     qr_code = db.get_setting("qr_code_file_id")
+    plan_name_clean = plan['name'].split('\n')[0]
 
     payment_msg = (
         "📸 **Pay via QR Code** 📸\n"
         "\u200b\n"
-        f"📦 **Selected Plan**: {plan['name'].split('\n')[0]}\n"
+        f"📦 **Selected Plan**: {plan_name_clean}\n"
         f"⏱ **Duration**: {duration}\n"
         f"💰 **Amount to Pay**: `{price}`\n"
         "\u200b\n"
@@ -447,10 +448,11 @@ async def show_payment_upi(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     price = context.user_data["selected_price"]
     upi_ids = db.get_upi_ids()
     upi_text = "\n".join([f"🔸 `{u}`" for u in upi_ids]) if upi_ids else "⚠️ No UPI ID configured by Admin yet."
+    plan_name_clean = plan['name'].split('\n')[0]
     payment_msg = (
         "🔑 **Pay via UPI ID** 🔑\n"
         "\u200b\n"
-        f"📦 **Selected Plan**: {plan['name'].split('\n')[0]}\n"
+        f"📦 **Selected Plan**: {plan_name_clean}\n"
         f"⏱ **Duration**: {duration}\n"
         f"💰 **Amount to Pay**: `{price}`\n"
         "\u200b\n"
@@ -503,7 +505,8 @@ async def show_payment_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     primary_upi = upi_ids[0] if upi_ids else "nisanthlatha2001-3@okaxis"
     
     clean_amount = extract_numeric_amount(price)
-    clean_plan_name = clean_upi_note(plan['name'].split("\n")[0])
+    plan_name_clean = plan['name'].split('\n')[0]
+    clean_plan_name = clean_upi_note(plan_name_clean)
     
     bot_username = context.bot.username or "TamilanlinkssSubscription_bot"
     pay_params = {
@@ -523,7 +526,7 @@ async def show_payment_app(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     payment_msg = (
         "📲 **Pay via UPI App (Auto-Activation)** 📲\n"
         "\u200b\n"
-        f"📦 **Selected Plan**: {plan['name'].split('\n')[0]}\n"
+        f"📦 **Selected Plan**: {plan_name_clean}\n"
         f"⏱ **Duration**: {duration}\n"
         f"💰 **Amount to Pay**: `{price}`\n"
         "\u200b\n"

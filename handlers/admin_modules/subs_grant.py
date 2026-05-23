@@ -78,8 +78,9 @@ async def handle_grant_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         return ConversationHandler.END
 
     context.user_data["grant_plan"] = plan
+    plan_name_clean = plan['name'].split('\n')[0]
     text = (
-        f"🎁 **Selected Plan: {plan['name'].split('\n')[0]}**\n\n"
+        f"🎁 **Selected Plan: {plan_name_clean}**\n\n"
         "⏱ **Select Duration for Grant:**"
     )
     buttons = []
@@ -152,6 +153,7 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
     uid = context.user_data["grant_uid"]
     plan = context.user_data["grant_plan"]
     start_date = datetime.now().strftime("%d/%m/%Y")
+    plan_name_clean = plan["name"].split('\n')[0]
 
     if duration == "Lifetime (Permanent)":
         expiry_date = "Lifetime (Permanent)"
@@ -170,7 +172,7 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
 
     sub_id = db.add_subscription(
         user_id=uid, username=username_clean, profile_link=profile_link,
-        plan_id=plan["plan_id"], plan_name=plan["name"].split('\n')[0], duration=duration,
+        plan_id=plan["plan_id"], plan_name=plan_name_clean, duration=duration,
         amount=price_str, screenshot_file_id="N/A"
     )
     db.update_subscription_status(sub_id, status="Granted", start_date=start_date, expiry_date=expiry_date, notes="Granted manually by Admin")
@@ -182,7 +184,7 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
         "Congratulations! You have been manually granted Premium VIP subscription access by the Administrator.\n\n"
         "━━━━━━━━━━━━━━━\n"
         "**Plan details** :-\n\n"
-        f"📦 **Selected Plan** : {plan['name'].split('\n')[0]}\n\n"
+        f"📦 **Selected Plan** : {plan_name_clean}\n\n"
         f"🆔 **Plan Id** : {plan['plan_id']}\n\n"
         f"⏰ **Plan Duration** : {duration}\n\n"
         f"📅 **Start Date** : {start_date}\n\n"
@@ -220,7 +222,7 @@ async def execute_grant_access(target_obj, context, duration, price_str, admin_n
         f"🔗 **Profile Link** : [Click Here]({profile_link})\n\n"
         "━━━━━━━━━━━━━━━\n"
         "**Plan details** :-\n\n"
-        f"📦 **Selected Plan** : {plan['name'].split('\n')[0]}\n\n"
+        f"📦 **Selected Plan** : {plan_name_clean}\n\n"
         f"🆔 **Plan Id** : {plan['plan_id']}\n\n"
         f"⏰ **Plan Duration** : {duration}\n\n"
         f"📅 **Start Date** : {start_date}\n\n"
