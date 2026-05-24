@@ -308,12 +308,22 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                     except Exception: pass
             await asyncio.sleep(0.05)
 
-    final_text = (
-        "✅ **Raid Scan Completed!**\n\n"
-        f"📺 **Channels Checked**: `{total_chans}`\n"
-        f"👥 **Total User Checks**: `{checked_users_count}`\n"
-        f"🚨 **Unauthorized Users Detected**: `{unauthorized_count}`"
-    )
+    scan_was_cancelled = is_scan_cancelled()
+    
+    if scan_was_cancelled:
+        final_text = (
+            "🛑 **Raid Scan Cancelled by Admin** 🛑\n\n"
+            f"📺 **Channels Checked (Partial)**: `{c_idx}/{total_chans}`\n"
+            f"👥 **Total User Checks Run**: `{checked_users_count}`\n"
+            f"🚨 **Unauthorized Users Detected So Far**: `{unauthorized_count}`"
+        )
+    else:
+        final_text = (
+            "✅ **Raid Scan Completed!**\n\n"
+            f"📺 **Channels Checked**: `{total_chans}`\n"
+            f"👥 **Total User Checks**: `{checked_users_count}`\n"
+            f"🚨 **Unauthorized Users Detected**: `{unauthorized_count}`"
+        )
     if chan_tracking_msg:
         try: await chan_tracking_msg.edit_text(final_text, parse_mode="Markdown")
         except Exception: pass
@@ -321,7 +331,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     if admin_query:
         import json
         try:
-            if is_scan_cancelled():
+            if scan_was_cancelled:
                 db.set_setting("cancel_raid_scan", "0")
                 text = (
                     f"🛑 **Raid Scan Cancelled by Admin** 🛑\n\n"
