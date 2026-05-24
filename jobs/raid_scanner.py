@@ -195,7 +195,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
             except Exception: pass
         return
 
-    user_ids = db.get_all_unique_user_ids()
+    user_ids = db.get_all_subscription_user_ids()
     if not user_ids:
         if admin_query:
             try: await admin_query.edit_message_text("⚠️ No registered users found in the database to scan.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back", callback_data="raid_menu")]]))

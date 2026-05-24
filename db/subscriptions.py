@@ -243,3 +243,25 @@ class SubscriptionQueries(ConnectionManager):
                     cursor.execute("DELETE FROM settings")
             except Exception:
                 pass
+
+    def get_all_subscription_user_ids(self) -> List[int]:
+        uids = set()
+        try:
+            rows = self._run_read_query("SELECT DISTINCT user_id FROM subscriptions")
+            for r in rows:
+                uids.add(r[0])
+            return list(uids)
+        except Exception:
+            # Fallback
+            for url in self._db_urls:
+                if self._db_status.get(url) != "Online":
+                    continue
+                try:
+                    with self._get_cursor(specific_url=url) as (cursor, conn):
+                        cursor.execute("SELECT DISTINCT user_id FROM subscriptions")
+                        for r in cursor.fetchall():
+                            uids.add(r[0])
+                    return list(uids)
+                except Exception:
+                    pass
+        return []
