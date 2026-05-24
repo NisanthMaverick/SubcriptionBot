@@ -222,7 +222,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         is_raid_chan_configured = True
 
     if admin_query:
-        db.delete_setting("cancel_raid_scan")
+        db.set_setting("cancel_raid_scan", "0")
         try:
             tracking_msg = await context.bot.send_message(
                 chat_id=admin_query.message.chat_id,
@@ -325,7 +325,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         import json
         try:
             if db.get_setting("cancel_raid_scan", "0") == "1":
-                db.delete_setting("cancel_raid_scan")
+                db.set_setting("cancel_raid_scan", "0")
                 text = (
                     f"🛑 **Raid Scan Cancelled by Admin** 🛑\n\n"
                     f"📺 Channels Checked (Partial): `{c_idx}/{total_chans}`\n"
