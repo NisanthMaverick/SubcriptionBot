@@ -224,13 +224,13 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     if admin_query:
         db.set_setting("cancel_raid_scan", "0")
         try:
-            tracking_msg = await context.bot.send_message(
-                chat_id=admin_query.message.chat_id,
+            tracking_msg = admin_query.message
+            await admin_query.edit_message_text(
                 text="🔄 Starting manual verification scan of premium channels...",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Cancel Scan", callback_data="raid_cancel_scan")]])
             )
         except Exception:
-            pass
+            tracking_msg = None
 
         if is_raid_chan_configured:
             try:
@@ -321,9 +321,6 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         f"👥 **Total User Checks**: `{checked_users_count}`\n"
         f"🚨 **Unauthorized Users Detected**: `{unauthorized_count}`"
     )
-    if tracking_msg:
-        try: await tracking_msg.delete()
-        except Exception: pass
     if chan_tracking_msg:
         try: await chan_tracking_msg.edit_text(final_text, parse_mode="Markdown")
         except Exception: pass
