@@ -297,7 +297,11 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                     "⌛ _Scan running..._"
                 )
                 if tracking_msg:
-                    try: await tracking_msg.edit_text(status_text, parse_mode="Markdown")
+                    try: await tracking_msg.edit_text(
+                        status_text, 
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Cancel Scan", callback_data="raid_cancel_scan")]])
+                    )
                     except Exception: pass
                 if chan_tracking_msg:
                     try: await chan_tracking_msg.edit_text(status_text, parse_mode="Markdown")
@@ -311,7 +315,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         f"🚨 **Unauthorized Users Detected**: `{unauthorized_count}`"
     )
     if tracking_msg:
-        try: await tracking_msg.edit_text(final_text, parse_mode="Markdown")
+        try: await tracking_msg.delete()
         except Exception: pass
     if chan_tracking_msg:
         try: await chan_tracking_msg.edit_text(final_text, parse_mode="Markdown")
