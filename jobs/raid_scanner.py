@@ -222,10 +222,12 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
         is_raid_chan_configured = True
 
     if admin_query:
+        db.delete_setting("cancel_raid_scan")
         try:
             tracking_msg = await context.bot.send_message(
                 chat_id=admin_query.message.chat_id,
-                text="🔄 Starting manual verification scan of premium channels..."
+                text="🔄 Starting manual verification scan of premium channels...",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Cancel Scan", callback_data="raid_cancel_scan")]])
             )
         except Exception:
             pass
@@ -240,10 +242,16 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                 pass
 
     for c_idx, chan in enumerate(channels, 1):
+        if db.get_setting("cancel_raid_scan", "0") == "1":
+            break
+            
         channel_id = chan["channel_id"]
         channel_title = chan["title"]
 
         for u_idx, user_id in enumerate(user_ids, 1):
+            if db.get_setting("cancel_raid_scan", "0") == "1":
+                break
+                
             checked_users_count += 1
             # Retrieve user display name if possible
             first_name = "Premium User"
@@ -312,6 +320,22 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     if admin_query:
         import json
         try:
+            if db.get_setting("cancel_raid_scan", "0") == "1":
+                db.delete_setting("cancel_raid_scan")
+                text = (
+                    f"🛑 **Raid Scan Cancelled by Admin** 🛑\n\n"
+                    f"📺 Channels Checked (Partial): `{c_idx}/{total_chans}`\n"
+                    f"👥 User Checks Run: `{checked_users_count}`\n"
+                    f"🚨 **Unauthorized Users Found So Far**: `{len(unauthorized_users)}`\n"
+                )
+                reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]])
+                await admin_query.edit_message_text(
+                    text=text,
+                    reply_markup=reply_markup,
+                    parse_mode="Markdown"
+                )
+                return
+
             if unauthorized_users:
                 db.set_setting("temp_unauthorized_users", json.dumps(unauthorized_users))
                 

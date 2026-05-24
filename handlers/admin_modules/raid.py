@@ -643,12 +643,15 @@ raid_timeout_conv = ConversationHandler(
     per_message=False
 )
 
-
+async def cancel_raid_scan_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    db.set_setting("cancel_raid_scan", "1")
+    await update.callback_query.answer("🛑 Scan cancellation requested... please wait a moment.", show_alert=True)
 
 raid_action_handlers = [
     CallbackQueryHandler(toggle_raid_protection, pattern="^raid_toggle_prot$"),
     CallbackQueryHandler(toggle_auto_remove, pattern="^raid_toggle_rem$"),
     CallbackQueryHandler(run_manual_scan, pattern="^raid_run_scan$"),
+    CallbackQueryHandler(cancel_raid_scan_callback, pattern="^raid_cancel_scan$"),
     CallbackQueryHandler(handle_raid_remove_all_action, pattern="^raid_remove_all$"),
     CallbackQueryHandler(handle_raid_remove_action, pattern=r"^raid_remove_-?\d+_\d+$"),
     CallbackQueryHandler(handle_raid_ignore_action, pattern="^raid_ignore_"),
