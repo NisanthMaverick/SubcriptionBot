@@ -223,14 +223,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
 
     if admin_query:
         db.set_setting("cancel_raid_scan", "0")
-        try:
-            tracking_msg = admin_query.message
-            await admin_query.edit_message_text(
-                text="🔄 Starting manual verification scan of premium channels...",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Cancel Scan", callback_data="raid_cancel_scan")]])
-            )
-        except Exception:
-            tracking_msg = None
+        tracking_msg = admin_query.message
 
         if is_raid_chan_configured:
             try:

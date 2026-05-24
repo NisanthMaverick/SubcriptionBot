@@ -141,6 +141,15 @@ async def run_manual_scan(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     query = update.callback_query
     await query.answer("Verification scan started!")
     
+    try:
+        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+        await query.edit_message_text(
+            "🔄 Starting manual verification scan of premium channels...",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🛑 Cancel Scan", callback_data="raid_cancel_scan")]])
+        )
+    except Exception:
+        pass
+        
     # Run the scanning job directly as an async task, passing the admin query for real-time monitoring
     asyncio.create_task(scan_channels_job(context, admin_query=query))
 
