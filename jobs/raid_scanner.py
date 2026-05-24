@@ -335,8 +335,8 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
                 db.set_setting("cancel_raid_scan", "0")
                 text = (
                     f"🛑 **Raid Scan Cancelled by Admin** 🛑\n\n"
-                    f"📺 Channels Checked (Partial): `{c_idx}/{total_chans}`\n"
-                    f"👥 User Checks Run: `{checked_users_count}`\n"
+                    f"📺 **Channels Checked (Partial)**: `{c_idx}/{total_chans}`\n"
+                    f"👥 **Total User Checks Run**: `{checked_users_count}`\n"
                     f"🚨 **Unauthorized Users Found So Far**: `{len(unauthorized_users)}`\n"
                 )
                 reply_markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Back to Protection Menu", callback_data="raid_menu")]])
