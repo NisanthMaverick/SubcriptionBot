@@ -241,15 +241,22 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
             except Exception:
                 pass
 
+    def is_scan_cancelled():
+        try:
+            row = db._run_read_query_one("SELECT value FROM settings WHERE key = 'cancel_raid_scan'")
+            return row and row[0] == "1"
+        except Exception:
+            return False
+
     for c_idx, chan in enumerate(channels, 1):
-        if db.get_setting("cancel_raid_scan", "0") == "1":
+        if is_scan_cancelled():
             break
             
         channel_id = chan["channel_id"]
         channel_title = chan["title"]
 
         for u_idx, user_id in enumerate(user_ids, 1):
-            if db.get_setting("cancel_raid_scan", "0") == "1":
+            if is_scan_cancelled():
                 break
                 
             checked_users_count += 1
@@ -324,7 +331,7 @@ async def scan_channels_job(context: ContextTypes.DEFAULT_TYPE, admin_query=None
     if admin_query:
         import json
         try:
-            if db.get_setting("cancel_raid_scan", "0") == "1":
+            if is_scan_cancelled():
                 db.set_setting("cancel_raid_scan", "0")
                 text = (
                     f"🛑 **Raid Scan Cancelled by Admin** 🛑\n\n"
