@@ -55,8 +55,9 @@ async def handle_edit_plan_selection(update: Update, context: ContextTypes.DEFAU
 
     cur_link = db.get_setting(f"plan_link_{pid}", "Not Configured")
     cur_ext_btns = db.get_setting(f"link_custom_buttons_{pid}", "None")
+    plan_title_clean = p['name'].split('\n')[0]
     text = (
-        f"✏️ **Editing Plan #{pid}: {p['name'].split('\n')[0]}**\n\n"
+        f"✏️ **Editing Plan #{pid}: {plan_title_clean}**\n\n"
         f"**Current Title**: {p['name']}\n"
         f"**Current Description**:\n{p['description']}\n"
         f"**Channel Join Link**: `{cur_link}`\n"

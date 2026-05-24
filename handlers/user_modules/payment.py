@@ -43,12 +43,13 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
     user_clean_name = clean_username(user.first_name or user.username or "User")
     profile_link = f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.id}"
 
+    plan_name_clean = plan["name"].split('\n')[0]
     sub_id = db.add_subscription(
         user_id=user.id,
         username=user_clean_name,
         profile_link=profile_link,
         plan_id=plan["plan_id"],
-        plan_name=plan["name"].split('\n')[0],
+        plan_name=plan_name_clean,
         duration=duration,
         amount=price,
         screenshot_file_id=photo_id
@@ -63,7 +64,7 @@ async def receive_payment_screenshot(update: Update, context: ContextTypes.DEFAU
     review_caption = (
         f"🔔 **New Subscription Verification Request (#{sub_id})** 🔔\n\n"
         f"👤 **User**: [{user_clean_name}]({profile_link}) (`{user.id}`)\n"
-        f"📦 **Plan**: {plan['name'].split('\n')[0]} (ID: {plan['plan_id']})\n"
+        f"📦 **Plan**: {plan_name_clean} (ID: {plan['plan_id']})\n"
         f"⏱ **Duration**: {duration}\n"
         f"💰 **Amount**: {price}\n"
         f"💳 **Payment Method**: {pay_method}"

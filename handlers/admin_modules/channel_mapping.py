@@ -126,14 +126,16 @@ async def receive_channel_input(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def start_map_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
     plans = db.get_all_plans()
     if not plans:
         back_btn = InlineKeyboardButton("🔙 Back", callback_data="chan_menu")
         reply_markup = build_grid_keyboard([], back_button=back_btn)
         await edit_message_safely(query, "⚠️ No plans available.", reply_markup)
         return
-    buttons = [InlineKeyboardButton(f"📦 {p['name'].split('\n')[0][:40]}", callback_data=f"chan_map_select_{p['plan_id']}") for p in plans]
+    buttons = []
+    for p in plans:
+        name_clean = p['name'].split('\n')[0][:40]
+        buttons.append(InlineKeyboardButton(f"📦 {name_clean}", callback_data=f"chan_map_select_{p['plan_id']}"))
     back_btn = InlineKeyboardButton("❌ Cancel", callback_data="chan_menu")
     reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
     await edit_message_safely(query, "🔗 **Map Channels to Plan**\n\nSelect a Subscription Plan to manage its channel access:", reply_markup)
