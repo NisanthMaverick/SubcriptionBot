@@ -9,7 +9,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 from telegram import Update
-from telegram.ext import Application, ChatMemberHandler
+from telegram.ext import Application, ChatMemberHandler, ContextTypes
 from config import BOT_TOKEN
 from database import db
 from handlers.admin import get_admin_handlers
