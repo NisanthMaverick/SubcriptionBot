@@ -306,3 +306,14 @@ class ConnectionManager:
                 "active_subs": active_subs
             })
         return analytics
+
+    def ping_databases(self) -> None:
+        """Ping all online databases to keep serverless connections alive."""
+        for url in self._db_urls:
+            if self._db_status.get(url) != "Online":
+                continue
+            try:
+                with self._get_cursor(specific_url=url) as (cursor, conn):
+                    cursor.execute("SELECT 1")
+            except Exception:
+                pass

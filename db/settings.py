@@ -50,7 +50,7 @@ class SettingQueries(ConnectionManager):
             except Exception:
                 pass
 
-    def set_setting(self, key: str, value: str) -> None:
+    def set_setting(self, key: str, value: str, overwrite: bool = True) -> None:
         global _settings_cache
         _settings_cache[key] = str(value)
         
@@ -59,10 +59,16 @@ class SettingQueries(ConnectionManager):
                 continue
             try:
                 with self._get_cursor(specific_url=url) as (cursor, conn):
-                    cursor.execute("""
-                        INSERT INTO settings (key, value) VALUES (%s, %s)
-                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
-                    """, (key, str(value)))
+                    if overwrite:
+                        cursor.execute("""
+                            INSERT INTO settings (key, value) VALUES (%s, %s)
+                            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                        """, (key, str(value)))
+                    else:
+                        cursor.execute("""
+                            INSERT INTO settings (key, value) VALUES (%s, %s)
+                            ON CONFLICT (key) DO NOTHING
+                        """, (key, str(value)))
             except Exception as e:
                 logger.warning(f"set_setting failed on DB {url[:30]}: {e}")
 
@@ -106,5 +112,4 @@ class SettingQueries(ConnectionManager):
             "pay_method_app_enabled": "1"
         }
         for k, v in defaults.items():
-            if self.get_setting(k) is None:
-                self.set_setting(k, v)
+            self.set_setting(k, v, overwrite=False)

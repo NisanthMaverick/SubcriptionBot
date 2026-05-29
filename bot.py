@@ -588,7 +588,14 @@ class DummyHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             self.wfile.write(b"Bot is running!")
-        
+
+async def keep_db_alive_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Pings the database every few minutes to keep serverless connections warm."""
+    try:
+        db.ping_databases()
+    except Exception as e:
+        logger.error(f"Keep-alive job failed: {e}")
+
 def start_dummy_server():
     port = int(os.environ.get("PORT", 10000))
     server = ThreadingHTTPServer(('0.0.0.0', port), DummyHandler)
@@ -635,6 +642,8 @@ def main() -> None:
         application.job_queue.run_repeating(check_subscription_expiry, interval=3600, first=10)
         logger.info("Scheduling automated channel raid scan job checker (runs every 5 minutes)...")
         application.job_queue.run_repeating(scan_channels_job, interval=300, first=30)
+        logger.info("Scheduling database keep-alive job (runs every 3 minutes)...")
+        application.job_queue.run_repeating(keep_db_alive_job, interval=180, first=15)
     else:
         logger.warning("JobQueue is not enabled or available in this environment.")
 
