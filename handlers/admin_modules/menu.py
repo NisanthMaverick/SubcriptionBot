@@ -53,7 +53,6 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
             InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
             InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
-            InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
             InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
         ]
     elif role == "owner":
@@ -65,7 +64,6 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
             InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
             InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
-            InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
             InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access")
         ]
 
