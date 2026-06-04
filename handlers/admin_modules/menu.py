@@ -50,8 +50,8 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
             InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
             InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
-            InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
             InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
+            InlineKeyboardButton("🛡️ Admin Settings", callback_data="menu_admin_settings"),
             InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
         ]
     elif role == "owner":
@@ -60,9 +60,8 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("💳 Payment Settings", callback_data="menu_payment"),
             InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
             InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
-            InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
             InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
-            InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access")
+            InlineKeyboardButton("🛡️ Admin Settings", callback_data="menu_admin_settings")
         ]
 
     close_btn = InlineKeyboardButton("❌ Close Panel", callback_data="close_panel")
@@ -90,6 +89,21 @@ async def cancel_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     context.user_data.clear()
     await show_main_menu(update)
     return ConversationHandler.END
+
+async def show_admin_settings_menu(query, role):
+    text = (
+        "🛡️ **Admin Settings** 🛡️\n\n"
+        "Manage bot administrators and global broadcasts."
+    )
+    buttons = [
+        InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast")
+    ]
+    if role == "owner":
+        buttons.append(InlineKeyboardButton("🔑 Manage Admin Access", callback_data="menu_admin_access"))
+        
+    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
 async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -157,6 +171,8 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "menu_db_sync":
         from handlers.admin_modules.menu_db import show_db_sync_menu
         await show_db_sync_menu(query)
+    elif data == "menu_admin_settings":
+        await show_admin_settings_menu(query, role)
     elif data == "menu_backup_restore":
         from handlers.admin_modules.config import show_backup_menu
         await show_backup_menu(query)

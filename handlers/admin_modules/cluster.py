@@ -10,7 +10,7 @@ async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     from utils.keyboard_helper import build_grid_keyboard
     query = update.callback_query
     await query.answer()
-    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_main")
+    back_btn = InlineKeyboardButton("❌ Cancel / Back", callback_data="menu_admin_settings")
     reply_markup = build_grid_keyboard([], back_button=back_btn)
     msg = await query.edit_message_text(
         "📢 **Cluster Broadcast System** 📢\n\n"
@@ -37,7 +37,7 @@ async def receive_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     user_ids = db.get_all_unique_user_ids()
     if not user_ids:
-        back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+        back_btn = InlineKeyboardButton("🔙 Back to Admin Settings", callback_data="menu_admin_settings")
         reply_markup = build_grid_keyboard([], back_button=back_btn)
         await context.bot.send_message(
             chat_id=update.message.chat_id,
@@ -62,7 +62,7 @@ async def receive_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         except Exception:
             failed += 1
 
-    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    back_btn = InlineKeyboardButton("🔙 Back to Admin Settings", callback_data="menu_admin_settings")
     reply_markup = build_grid_keyboard([], back_button=back_btn)
     await context.bot.edit_message_text(
         chat_id=status_msg.chat_id,

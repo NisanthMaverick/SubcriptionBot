@@ -67,7 +67,7 @@ async def show_admin_access_menu(update: Update, context: ContextTypes.DEFAULT_T
         InlineKeyboardButton("➕ Add New Admin", callback_data="admin_add_admin_start"),
         InlineKeyboardButton("🗑️ Remove Admin", callback_data="admin_remove_admin_list")
     ]
-    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    back_btn = InlineKeyboardButton("🔙 Back to Admin Settings", callback_data="menu_admin_settings")
     reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
 
     if query:
