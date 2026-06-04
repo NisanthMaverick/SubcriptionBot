@@ -52,7 +52,7 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
             InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
             InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
-            InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore"),
+            InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
             InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
             InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
         ]
@@ -64,9 +64,8 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
             InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
             InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
-            InlineKeyboardButton("📤📥 Backup & Restore Settings", callback_data="menu_backup_restore"),
+            InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
             InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
-            InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean"),
             InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access")
         ]
 
@@ -159,6 +158,9 @@ async def handle_menu_navigation(update: Update, context: ContextTypes.DEFAULT_T
     elif data == "raid_menu":
         from handlers.admin_modules.raid import show_raid_menu
         await show_raid_menu(query)
+    elif data == "menu_db_sync":
+        from handlers.admin_modules.menu_db import show_db_sync_menu
+        await show_db_sync_menu(query)
     elif data == "menu_backup_restore":
         from handlers.admin_modules.config import show_backup_menu
         await show_backup_menu(query)

@@ -11,6 +11,11 @@ _settings_cache = {}
 _settings_cache_time = 0
 
 class SettingQueries(ConnectionManager):
+    def clear_cache(self) -> None:
+        global _settings_cache, _settings_cache_time
+        _settings_cache.clear()
+        _settings_cache_time = 0
+
     def get_setting(self, key: str, default: Any = None) -> Any:
         global _settings_cache, _settings_cache_time
         if time.time() - _settings_cache_time > 300:

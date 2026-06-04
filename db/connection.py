@@ -308,12 +308,19 @@ class ConnectionManager:
         return analytics
 
     def ping_databases(self) -> None:
-        """Ping all online databases to keep serverless connections alive."""
+        """Ping all databases to keep serverless connections alive and attempt reconnects."""
         for url in self._db_urls:
-            if self._db_status.get(url) != "Online":
+            status = self._db_status.get(url, "Unknown")
+            if status != "Online":
+                logger.info(f"Database {url[:30]} is {status}. Attempting to reconnect...")
+                self._connect_db_pool(url)
+                if self._db_status.get(url) == "Online":
+                    logger.info(f"Database {url[:30]} successfully reconnected!")
                 continue
+
             try:
                 with self._get_cursor(specific_url=url) as (cursor, conn):
                     cursor.execute("SELECT 1")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Keep-alive ping failed for {url[:30]}: {e}. Marking offline.")
+                self._db_status[url] = "Offline"

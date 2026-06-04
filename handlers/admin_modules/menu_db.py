@@ -134,5 +134,66 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
         reply_markup = build_grid_keyboard([], back_button=back_btn)
         await query.edit_message_text("🚨 **Factory Reset Complete: All plans, subscriber records, and custom settings have been completely erased from the database.**", reply_markup=reply_markup, parse_mode="Markdown")
         return True
+    elif data == "db_sync_refresh":
+        # Force a ping which attempts reconnect on offline databases
+        db.ping_databases()
+        # Clear settings cache so it re-reads from DB
+        db.clear_cache()
+        # Refresh current stats
+        total_cluster_users = db.count_users()
+        total_cluster_orders = db.count_subscriptions()
+        
+        await query.answer("Database pinged and caches cleared!")
+        text = (
+            "✅ **Manual Refresh Complete!**\n\n"
+            "Database connections have been checked and re-established if offline. Internal caches are cleared.\n\n"
+            f"👥 Unique Users Loaded: **{total_cluster_users}**\n"
+            f"📦 Subscriptions Loaded: **{total_cluster_orders}**\n\n"
+            "Your plans and settings should now be fully synced."
+        )
+        back_btn = InlineKeyboardButton("🔙 Back to Sync Menu", callback_data="menu_db_sync")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        return True
+    elif data == "db_sync_interval":
+        text = "⏱️ **Configure Auto-Check Interval**\n\nSelect how often the bot should ping the database to keep it online:"
+        buttons = [
+            InlineKeyboardButton("1 Minute", callback_data="set_db_interval_1"),
+            InlineKeyboardButton("3 Minutes", callback_data="set_db_interval_3"),
+            InlineKeyboardButton("5 Minutes", callback_data="set_db_interval_5"),
+            InlineKeyboardButton("10 Minutes", callback_data="set_db_interval_10"),
+            InlineKeyboardButton("❌ Disable", callback_data="set_db_interval_0")
+        ]
+        back_btn = InlineKeyboardButton("🔙 Back to Sync Menu", callback_data="menu_db_sync")
+        reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        return True
+    elif data.startswith("set_db_interval_"):
+        mins = data.split("_")[-1]
+        db.set_setting("db_ping_interval_mins", mins)
+        status_text = "Disabled" if mins == "0" else f"{mins} Minutes"
+        await query.answer(f"Interval set to {status_text}")
+        await show_db_sync_menu(query)
+        return True
 
     return False
+
+async def show_db_sync_menu(query):
+    interval = db.get_setting("db_ping_interval_mins", "3")
+    interval_str = "Disabled" if interval == "0" else f"{interval} minutes"
+    text = (
+        "🔄 **Database Sync & Integrity Check** 🔄\n\n"
+        "Ensure your database stays online and your settings/plans stay in sync. Serverless databases may sleep after inactivity; this tool keeps them awake.\n\n"
+        f"⏱️ **Current Auto-Check Interval**: `{interval_str}`\n\n"
+        "Select an option below:"
+    )
+    buttons = [
+        InlineKeyboardButton("⚡ Manual DB Start / Refresh Settings", callback_data="db_sync_refresh"),
+        InlineKeyboardButton("⏱️ Configure Check Interval", callback_data="db_sync_interval"),
+        InlineKeyboardButton("📤📥 Import/Export Settings", callback_data="menu_backup_restore"),
+        InlineKeyboardButton("🧹 Database Reset & Cleanup", callback_data="menu_db_clean")
+    ]
+    back_btn = InlineKeyboardButton("🔙 Back to Main Menu", callback_data="menu_main")
+    reply_markup = build_grid_keyboard(buttons, back_button=back_btn)
+    await query.edit_message_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+

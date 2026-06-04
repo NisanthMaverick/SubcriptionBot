@@ -589,10 +589,21 @@ class DummyHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"Bot is running!")
 
+import time
+last_ping_time = 0
+
 async def keep_db_alive_job(context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Pings the database every few minutes to keep serverless connections warm."""
+    """Pings the database on a dynamic configurable interval to keep it online."""
+    global last_ping_time
     try:
-        db.ping_databases()
+        interval_mins_str = db.get_setting("db_ping_interval_mins", "3")
+        if interval_mins_str == "0":
+            return  # Auto-ping disabled
+            
+        interval_secs = int(interval_mins_str) * 60
+        if time.time() - last_ping_time >= interval_secs:
+            db.ping_databases()
+            last_ping_time = time.time()
     except Exception as e:
         logger.error(f"Keep-alive job failed: {e}")
 
@@ -642,8 +653,8 @@ def main() -> None:
         application.job_queue.run_repeating(check_subscription_expiry, interval=3600, first=10)
         logger.info("Scheduling automated channel raid scan job checker (runs every 5 minutes)...")
         application.job_queue.run_repeating(scan_channels_job, interval=300, first=30)
-        logger.info("Scheduling database keep-alive job (runs every 3 minutes)...")
-        application.job_queue.run_repeating(keep_db_alive_job, interval=180, first=15)
+        logger.info("Scheduling database keep-alive job (dynamic interval checked every minute)...")
+        application.job_queue.run_repeating(keep_db_alive_job, interval=60, first=15)
     else:
         logger.warning("JobQueue is not enabled or available in this environment.")
 
