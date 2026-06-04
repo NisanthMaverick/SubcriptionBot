@@ -38,8 +38,9 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
             f"   • 👑 Total Active VIP Members: **{active_cluster_subs} VIPs**\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         )
-        await query.message.reply_text(report, parse_mode="Markdown")
-        await show_main_menu(update)
+        back_btn = InlineKeyboardButton("🔙 Back to Sync Menu", callback_data="menu_db_sync")
+        reply_markup = build_grid_keyboard([], back_button=back_btn)
+        await query.edit_message_text(report, reply_markup=reply_markup, parse_mode="Markdown")
         return True
     elif data == "menu_db_mgr":
         urls = db.get_all_db_urls()
@@ -181,10 +182,29 @@ async def handle_db_menu_navigation(update: Update, context: ContextTypes.DEFAUL
 async def show_db_sync_menu(query):
     interval = db.get_setting("db_ping_interval_mins", "3")
     interval_str = "Disabled" if interval == "0" else f"{interval} minutes"
+    analytics = db.get_database_analytics()
+    total_users = db.count_users()
+    
+    if not analytics:
+        status_text = "🔴 Offline (No connections)"
+    else:
+        offline_count = sum(1 for st in analytics if st['status'] == 'Offline')
+        if offline_count == 0:
+            status_text = "🟢 Online"
+        elif offline_count < len(analytics):
+            status_text = "🟡 Degraded (Some offline)"
+        else:
+            status_text = "🔴 Offline (All shards down)"
+            
+    last_interaction = "⚡ Live Syncing"
+    
     text = (
         "🔄 **Database Sync & Integrity Check** 🔄\n\n"
         "Ensure your database stays online and your settings/plans stay in sync. Serverless databases may sleep after inactivity; this tool keeps them awake.\n\n"
-        f"⏱️ **Current Auto-Check Interval**: `{interval_str}`\n\n"
+        f"🔌 **Cluster Status**: {status_text}\n"
+        f"👥 **Total Registered Users**: **{total_users}**\n"
+        f"⏱️ **Current Auto-Check Interval**: `{interval_str}`\n"
+        f"📡 **Last Interaction**: {last_interaction}\n\n"
         "Select an option below:"
     )
     buttons = [
