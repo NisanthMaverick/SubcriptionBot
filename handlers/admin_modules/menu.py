@@ -50,7 +50,6 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("📦 Manage Plans", callback_data="menu_plans"),
             InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
             InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
-            InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
             InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
             InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
             InlineKeyboardButton("👮 Channel Protection (Raid)", callback_data="raid_menu")
@@ -61,7 +60,6 @@ async def show_main_menu(update: Update):
             InlineKeyboardButton("💳 Payment Settings", callback_data="menu_payment"),
             InlineKeyboardButton("👥 Subscriber Management", callback_data="menu_subs"),
             InlineKeyboardButton("⚙️ Bot Configurations", callback_data="menu_config"),
-            InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
             InlineKeyboardButton("📢 Broadcast Message", callback_data="menu_broadcast"),
             InlineKeyboardButton("🔄 Database Sync & Integrity", callback_data="menu_db_sync"),
             InlineKeyboardButton("🔑 Admin Access", callback_data="menu_admin_access")

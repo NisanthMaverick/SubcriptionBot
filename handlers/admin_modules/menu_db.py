@@ -188,6 +188,7 @@ async def show_db_sync_menu(query):
         "Select an option below:"
     )
     buttons = [
+        InlineKeyboardButton("📊 System Status & Analytics", callback_data="menu_status"),
         InlineKeyboardButton("⚡ Manual DB Start / Refresh Settings", callback_data="db_sync_refresh"),
         InlineKeyboardButton("⏱️ Configure Check Interval", callback_data="db_sync_interval"),
         InlineKeyboardButton("🗄️ Multi-Database Manager", callback_data="menu_db_mgr"),
