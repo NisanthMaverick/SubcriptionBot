@@ -261,8 +261,15 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
         )
 
         import time
-        jq = context.job_queue or context.application.job_queue
-        if jq:
+        auto_delete = db.get_setting("link_auto_delete", "1") == "1"
+        jq = context.application.job_queue if hasattr(context, 'application') else None
+        if jq is None:
+            try:
+                jq = context.job_queue
+            except Exception:
+                jq = None
+
+        if auto_delete and jq:
             jq.run_repeating(
                 live_timer_update_job,
                 interval=5,
@@ -276,9 +283,11 @@ async def admin_send_link_callback(update: Update, context: ContextTypes.DEFAULT
                     "reply_markup": reply_markup
                 }
             )
-            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`!"
+            success_text = f"✅ Secure invite link sent to user `{sub['user_id']}`! Auto-deletes in {expiry_mins} min."
+        elif auto_delete and not jq:
+            success_text = f"✅ Secure invite link sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - install python-telegram-bot[job-queue])"
         else:
-            success_text = f"✅ Secure invite link successfully sent to user `{sub['user_id']}`! (Note: Auto-delete disabled - Scheduler Offline)"
+            success_text = f"✅ Secure invite link sent to user `{sub['user_id']}`! (Auto-delete is OFF)"
 
         await query.message.reply_text(success_text, disable_web_page_preview=True)
     except Exception as e:
@@ -334,21 +343,34 @@ async def admin_send_ind_links_callback(update: Update, context: ContextTypes.DE
         )
         
         import time
-        jq = context.job_queue or context.application.job_queue
-        jq.run_repeating(
-            live_timer_update_job,
-            interval=5,
-            first=5,
-            data={
-                "chat_id": sub["user_id"],
-                "message_id": sent_link.message_id,
-                "admin_mention": ADMIN_MENTION_LINK,
-                "end_time": time.time() + (expiry_mins * 60),
-                "original_text": msg_text,
-                "reply_markup": InlineKeyboardMarkup(link_buttons)
-            }
-        )
-        await query.message.reply_text(f"✅ Individual invite links successfully sent to user `{sub['user_id']}` (restricted and secure)!", disable_web_page_preview=True)
+        auto_delete = db.get_setting("link_auto_delete", "1") == "1"
+        jq = context.application.job_queue if hasattr(context, 'application') else None
+        if jq is None:
+            try:
+                jq = context.job_queue
+            except Exception:
+                jq = None
+
+        if auto_delete and jq:
+            jq.run_repeating(
+                live_timer_update_job,
+                interval=5,
+                first=5,
+                data={
+                    "chat_id": sub["user_id"],
+                    "message_id": sent_link.message_id,
+                    "admin_mention": ADMIN_MENTION_LINK,
+                    "end_time": time.time() + (expiry_mins * 60),
+                    "original_text": msg_text,
+                    "reply_markup": InlineKeyboardMarkup(link_buttons)
+                }
+            )
+            success_msg = f"✅ Individual invite links sent to user `{sub['user_id']}` (restricted, auto-deletes in {expiry_mins} min)!"
+        else:
+            success_msg = f"✅ Individual invite links sent to user `{sub['user_id']}` (restricted, no auto-delete)!"
+
+        await query.message.reply_text(success_msg, disable_web_page_preview=True)
     except Exception as e:
         logger.error(f"Failed to send individual links to user: {e}")
         await query.message.reply_text(f"❌ Failed to send links to user. They might have blocked the bot.", disable_web_page_preview=True)
+

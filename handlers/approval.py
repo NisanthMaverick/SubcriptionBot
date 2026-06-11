@@ -442,8 +442,15 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
         )
 
         import time
-        jq = context.job_queue or context.application.job_queue
-        if jq:
+        auto_delete = db.get_setting("link_auto_delete", "1") == "1"
+        jq = context.application.job_queue if hasattr(context, 'application') else None
+        if jq is None:
+            try:
+                jq = context.job_queue
+            except Exception:
+                jq = None
+
+        if auto_delete and jq:
             jq.run_repeating(
                 live_timer_update_job,
                 interval=5,
@@ -457,8 +464,10 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
                     "reply_markup": reply_markup
                 }
             )
+        elif auto_delete and not jq:
+            logger.error("Auto-delete is enabled but job_queue is unavailable. Install python-telegram-bot[job-queue].")
         else:
-            logger.error("Failed to schedule auto-delete because job_queue is entirely missing from application.")
+            logger.info("Auto-delete is disabled by admin setting.")
     except Exception as e:
         logger.error(f"Failed to send secure join link to user: {e}")
 

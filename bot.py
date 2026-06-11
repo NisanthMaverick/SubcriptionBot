@@ -16,6 +16,7 @@ from handlers.admin import get_admin_handlers
 from handlers.user import get_user_handlers
 from handlers.approval import get_approval_handlers
 from handlers.common import get_common_handlers
+from handlers.admin_modules.cluster import get_broadcast_link_handlers
 from jobs.notifications import check_subscription_expiry
 from jobs.raid_scanner import scan_channels_job, on_chat_member_update
 
@@ -638,6 +639,10 @@ def main() -> None:
 
     # Register approval callbacks
     for handler in get_approval_handlers():
+        application.add_handler(handler)
+
+    # Register broadcast Get Link callback (user clicks teaser to get live channel links)
+    for handler in get_broadcast_link_handlers():
         application.add_handler(handler)
 
     # Register common/fallback handlers last

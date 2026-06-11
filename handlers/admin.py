@@ -48,7 +48,8 @@ from handlers.admin_modules.config import (
     start_test_mode_users, receive_test_mode_users, toggle_test_mode
 )
 from handlers.admin_modules.cluster import (
-    start_broadcast, receive_broadcast, start_add_db, receive_add_db
+    start_broadcast, receive_broadcast, start_add_db, receive_add_db,
+    broadcast_callback_router
 )
 from handlers.admin_modules.channel_mapping import channel_add_conv, channel_nav_handlers
 from handlers.admin_modules.raid import raid_timeout_conv, raid_interval_conv, raid_action_handlers
@@ -176,8 +177,18 @@ def get_admin_handlers() -> list:
 
     broadcast_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(start_broadcast, pattern="^menu_broadcast$")],
-        states={ADMIN_BROADCAST: [MessageHandler(filters.ALL & ~filters.COMMAND, receive_broadcast)]},
-        fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^menu_admin_settings")]
+        states={
+            ADMIN_BROADCAST: [
+                # All intermediate callback steps (type, plan toggles, content-type, channel select)
+                CallbackQueryHandler(broadcast_callback_router, pattern="^bc_"),
+                # Final step: admin sends the actual message/media
+                MessageHandler(filters.ALL & ~filters.COMMAND, receive_broadcast),
+            ]
+        },
+        fallbacks=[
+            CommandHandler("cancel", cancel_admin_flow),
+            CallbackQueryHandler(cancel_callback_handler, pattern="^menu_admin_settings")
+        ]
     )
 
     add_db_conv = ConversationHandler(
