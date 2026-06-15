@@ -22,7 +22,7 @@ class PlanQueries(ConnectionManager):
 
             # Seed/overwrite Plan 1
             p1_dur = [{"duration": "1 Month", "price": "₹20"}, {"duration": "2 Months", "price": "₹35"}]
-            self.save_plan(1, "Access Series file store bot 📺", "Unlock unlimited premium access to the Series File Store Bot.", "₹20 - ₹35", p1_dur, overwrite=True)
+            self.save_plan(1, "Series bot & Movie channels", "Unlock premium access to Series Bot & Movie Channels.", "₹20 - ₹35", p1_dur, overwrite=True)
 
             # Migrate channel mappings to Plan 1
             for url in self._db_urls:
@@ -31,7 +31,7 @@ class PlanQueries(ConnectionManager):
                 try:
                     with self._get_cursor(specific_url=url) as (cursor, conn):
                         cursor.execute("UPDATE channel_mappings SET plan_id = 1")
-                        cursor.execute("UPDATE subscriptions SET plan_id = 1, plan_name = 'Access Series file store bot 📺'")
+                        cursor.execute("UPDATE subscriptions SET plan_id = 1, plan_name = 'Series bot & Movie channels'")
                         conn.commit()
                 except Exception as e:
                     logger.warning(f"Failed migration queries on DB {url[:30]}: {e}")

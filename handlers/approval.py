@@ -31,9 +31,18 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
     active_sub, is_active = check_user_active_sub(sub["user_id"])
     file_bot = db.get_setting("file_store_bot_username", "TamilanlinkssSubscription_bot")
     channels = db.get_all_premium_channels()
-    chan_links_text = ""
-    if channels:
-        chan_links_text = "\n\n📺 **Premium Channels:**\n" + "\n".join([f"🔹 [{c['title']}]({c['invite_link']})" for c in channels if c.get('invite_link')])
+    
+    # Filter Movies channels
+    movies_channels = [c for c in channels if any(x in c['title'].lower() for x in ['movie', 'db', 'theatre', 'hd'])]
+    
+    chan_links_text = (
+        "\n\n🤖 **For Series:** Check this bot for Series available!\n\n"
+        "🍿 **Movies Channels:**\n"
+    )
+    if movies_channels:
+        chan_links_text += "\n".join([f"🔹 {c['title']}" for c in movies_channels])
+    else:
+        chan_links_text += "*(No movie channels configured)*"
 
     log_chan = db.get_setting("sub_log_channel_id", "")
     if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
@@ -130,7 +139,10 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 f"{chan_links_text}"
             )
 
-            user_buttons = [[InlineKeyboardButton("🚀 Activate Premium 🚀", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")]]
+            user_buttons = [
+                [InlineKeyboardButton("🤖 Activate Series Bot", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")],
+                [InlineKeyboardButton("🍿 Get Link for Movies Channel", callback_data=f"get_link_{updated_sub['sub_id']}")]
+            ]
             try:
                 await context.bot.send_message(
                     chat_id=updated_sub["user_id"],
@@ -228,7 +240,10 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 f"{chan_links_text}"
             )
 
-            user_buttons = [[InlineKeyboardButton("🚀 Activate Premium 🚀", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")]]
+            user_buttons = [
+                [InlineKeyboardButton("🤖 Activate Series Bot", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")],
+                [InlineKeyboardButton("🍿 Get Link for Movies Channel", callback_data=f"get_link_{sub_id}")]
+            ]
             try:
                 await context.bot.send_message(
                     chat_id=updated_sub["user_id"],
@@ -314,7 +329,10 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
         f"{chan_links_text}"
     )
 
-    user_buttons = [[InlineKeyboardButton("🚀 Activate Premium 🚀", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")]]
+    user_buttons = [
+        [InlineKeyboardButton("🤖 Activate Series Bot", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")],
+        [InlineKeyboardButton("🍿 Get Link for Movies Channel", callback_data=f"get_link_{sub_id}")]
+    ]
     try:
         await context.bot.send_message(
             chat_id=updated_sub["user_id"],
@@ -392,7 +410,8 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
 
     delivery_type = db.get_setting("link_delivery_type", "folder")
     protect = db.get_setting("restrict_link_sharing", "1") == "1"
-    channels = db.get_channels_for_plan(sub['plan_id'])
+    all_channels = db.get_channels_for_plan(sub['plan_id'])
+    channels = [c for c in all_channels if any(x in c['title'].lower() for x in ['movie', 'db', 'theatre', 'hd'])]
 
     try:
         expiry_mins = int(db.get_setting("link_expiry_minutes", "3"))
