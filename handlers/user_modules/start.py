@@ -1,7 +1,7 @@
 import logging
 import json
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 from database import db
 from config import LOG_CHANNEL, ADMIN_ID
 from utils.formatters import clean_username
@@ -26,7 +26,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             if fallback:
                 msg += f"\n\nPlease join our channel for updates: {fallback}"
             await update.message.reply_text(msg, parse_mode="Markdown")
-            return
+            return ConversationHandler.END
+
+    # If deep-linked for plans list:
+    if context.args and context.args[0] in ["plans", "plan"]:
+        from handlers.user_modules.plans import show_plans_list
+        return await show_plans_list(update, context)
 
     # --- Start Auto-Activation for UPI App payment redirection ---
     if context.args and context.args[0].startswith("pay_success_"):

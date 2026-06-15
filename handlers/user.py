@@ -11,12 +11,14 @@ from handlers.user_modules.payment import receive_payment_screenshot, handle_pay
 def get_user_handlers() -> list:
     plan_conv = ConversationHandler(
         entry_points=[
+            CommandHandler("start", start_command),
             CommandHandler("plan", plan_command),
             CallbackQueryHandler(show_plans_list, pattern="^select_plans_menu$"),
             CallbackQueryHandler(handle_plan_selection, pattern="^select_plan_")
         ],
         states={
             USER_DURATION: [
+                CommandHandler("start", start_command),
                 CommandHandler("plan", plan_command),
                 CallbackQueryHandler(show_plans_list, pattern="^select_plans_menu$"),
                 CallbackQueryHandler(show_buy_premium_menu, pattern="^buy_premium_menu$"),
@@ -30,6 +32,7 @@ def get_user_handlers() -> list:
                 CallbackQueryHandler(handle_back_to_durations, pattern="^back_to_durations$")
             ],
             USER_PAYMENT_UPLOAD: [
+                CommandHandler("start", start_command),
                 CommandHandler("plan", plan_command),
                 CallbackQueryHandler(show_plans_list, pattern="^select_plans_menu$"),
                 MessageHandler(filters.PHOTO, receive_payment_screenshot),
@@ -41,7 +44,6 @@ def get_user_handlers() -> list:
     )
 
     return [
-        CommandHandler("start", start_command),
+        plan_conv,
         CommandHandler("id", id_command),
-        plan_conv
     ]
