@@ -15,21 +15,28 @@ class PlanQueries(ConnectionManager):
 
     def _seed_default_plans(self):
         try:
-            row = self._run_read_query_one("SELECT COUNT(*) FROM plans")
-            count = row[0] if row else 0
-        except Exception:
-            count = 0
+            logger.info("Ensuring unified single subscription plan across cluster...")
+            # Delete plans 2 and 3 if they exist
+            self.delete_plan(2)
+            self.delete_plan(3)
 
-        if count == 0:
-            logger.info("Seeding default subscription plans across cluster...")
+            # Seed/overwrite Plan 1
             p1_dur = [{"duration": "1 Month", "price": "₹20"}, {"duration": "2 Months", "price": "₹35"}]
-            self.save_plan(1, "1️⃣ Series Channel - Premium 📺", "Access all exclusive series without interruptions.", "₹20 - ₹35", p1_dur, overwrite=False)
+            self.save_plan(1, "Access Series file store bot 📺", "Unlock unlimited premium access to the Series File Store Bot.", "₹20 - ₹35", p1_dur, overwrite=True)
 
-            p2_dur = [{"duration": "1 Month", "price": "₹40"}, {"duration": "2 Months", "price": "₹70"}]
-            self.save_plan(2, "2️⃣ Movie & DB Channel - Premium 🍿", "Unlimited high-speed downloads for all premium movies.", "₹40 - ₹70", p2_dur, overwrite=False)
-
-            p3_dur = [{"duration": "1 Month", "price": "₹50"}, {"duration": "2 Months", "price": "₹90"}]
-            self.save_plan(3, "3️⃣ All Channels Premium 👑", "🔥 Full Access Pass 🔥 Get VIP access across all channels.", "₹50 - ₹90", p3_dur, overwrite=False)
+            # Migrate channel mappings to Plan 1
+            for url in self._db_urls:
+                if self._db_status.get(url) != "Online":
+                    continue
+                try:
+                    with self._get_cursor(specific_url=url) as (cursor, conn):
+                        cursor.execute("UPDATE channel_mappings SET plan_id = 1")
+                        cursor.execute("UPDATE subscriptions SET plan_id = 1, plan_name = 'Access Series file store bot 📺'")
+                        conn.commit()
+                except Exception as e:
+                    logger.warning(f"Failed migration queries on DB {url[:30]}: {e}")
+        except Exception as e:
+            logger.error(f"Error seeding default plans/running migration: {e}")
 
     def save_plan(self, plan_id: int, name: str, description: str, amount: str, durations: List[Dict[str, str]], overwrite: bool = True) -> None:
         durations_str = json.dumps(durations)

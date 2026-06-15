@@ -23,11 +23,13 @@ async def show_config_menu(query):
     test_users = db.get_setting("testing_mode_users", "None")
     log_chan = db.get_setting("log_channel_id", "Not Configured")
     sub_log_chan = db.get_setting("sub_log_channel_id", "Not Configured")
+    file_bot = db.get_setting("file_store_bot_username", "Not Configured")
     
     text = (
         "⚙️ **Bot Configurations & Automation** ⚙️\n\n"
         f"**System Log Channel**: `{log_chan}`\n"
         f"**Subscription Log Channel**: `{sub_log_chan}`\n"
+        f"**File Store Bot**: `@{file_bot}`\n"
         f"**Testing Mode**: {test_mode_str}\n"
         f"**Test User IDs**: `{test_users}`\n\n"
         "Select an action:"
@@ -36,6 +38,7 @@ async def show_config_menu(query):
         InlineKeyboardButton("💬 Customize Welcome Screen (/start)", callback_data="welcome_config_menu"),
         InlineKeyboardButton("📋 Config System Log Channel", callback_data="admin_log_channel"),
         InlineKeyboardButton("📋 Config Subscription Log Channel", callback_data="admin_sub_log_channel"),
+        InlineKeyboardButton("🤖 Configure File Store Bot", callback_data="admin_config_file_bot"),
         InlineKeyboardButton("⏰ Expiry Notification Settings", callback_data="admin_expiry_notify"),
         InlineKeyboardButton("🔗 Get Link Delivery Settings", callback_data="get_link_config_menu"),
         InlineKeyboardButton("📺 Premium Channels", callback_data="chan_menu"),
@@ -396,6 +399,39 @@ async def receive_sub_log_channel(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"Error receiving subscription log channel: {e}")
         await context.bot.send_message(chat_id=update.message.chat_id, text=f"❌ An error occurred: {e}", reply_markup=reply_markup)
     
+    context.user_data.clear()
+    return ConversationHandler.END
+
+async def start_config_file_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    query = update.callback_query
+    await query.answer()
+    current_bot = db.get_setting("file_store_bot_username", "Not Set")
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("❌ Cancel", callback_data="menu_config"))
+    await edit_message_safely(
+        query, 
+        f"🤖 **File Store Bot Configuration**\n\nCurrent Bot: `{current_bot}`\n\nPlease send the File Store Bot username (e.g. `@MyFileStoreBot` or `MyFileStoreBot`):\n\nType /cancel to abort.", 
+        reply_markup
+    )
+    context.user_data["prompt_msg_id"] = query.message.message_id
+    context.user_data["prompt_chat_id"] = query.message.chat_id
+    from handlers.admin_modules import FILE_STORE_BOT_USERNAME
+    return FILE_STORE_BOT_USERNAME
+
+async def receive_config_file_bot(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from utils.keyboard_helper import build_grid_keyboard
+    bot_input = update.message.text.strip()
+    try: await update.message.delete()
+    except Exception: pass
+    if "prompt_msg_id" in context.user_data:
+        try: await context.bot.delete_message(chat_id=context.user_data["prompt_chat_id"], message_id=context.user_data["prompt_msg_id"])
+        except Exception: pass
+
+    bot_username = bot_input.replace("@", "").strip()
+    db.set_setting("file_store_bot_username", bot_username)
+    
+    reply_markup = build_grid_keyboard([], back_button=InlineKeyboardButton("🔙 Back to Configurations", callback_data="menu_config"))
+    await context.bot.send_message(chat_id=update.message.chat_id, text=f"✅ File Store Bot successfully updated to: `@{bot_username}`", reply_markup=reply_markup)
     context.user_data.clear()
     return ConversationHandler.END
 

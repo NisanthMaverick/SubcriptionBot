@@ -29,6 +29,11 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
     pay_method = sub.get("notes") or ("UPI App" if sub["screenshot_file_id"] == "UPI_APP_AUTO" else "QR Code")
 
     active_sub, is_active = check_user_active_sub(sub["user_id"])
+    file_bot = db.get_setting("file_store_bot_username", "TamilanlinkssSubscription_bot")
+    channels = db.get_all_premium_channels()
+    chan_links_text = ""
+    if channels:
+        chan_links_text = "\n\n📺 **Premium Channels:**\n" + "\n".join([f"🔹 [{c['title']}]({c['invite_link']})" for c in channels if c.get('invite_link')])
 
     log_chan = db.get_setting("sub_log_channel_id", "")
     if not log_chan or log_chan in ["Not Configured", "Not Set", "None", ""]:
@@ -122,9 +127,10 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 f"💳 **Payment Method** : {pay_method}\n\n"
                 "━━━━━━━━━━━━━━━\n\n"
                 "⚡ **Your premium access has been successfully extended!** 🚀"
+                f"{chan_links_text}"
             )
 
-            user_buttons = [[InlineKeyboardButton("🔗 Get Channel Link", callback_data=f"get_link_{updated_sub['sub_id']}")]]
+            user_buttons = [[InlineKeyboardButton("🚀 Activate Premium 🚀", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")]]
             try:
                 await context.bot.send_message(
                     chat_id=updated_sub["user_id"],
@@ -219,9 +225,10 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 f"💳 **Payment Method** : {pay_method}\n\n"
                 "━━━━━━━━━━━━━━━\n\n"
                 "⚡ **Your new VIP Access is ready!** 🚀"
+                f"{chan_links_text}"
             )
 
-            user_buttons = [[InlineKeyboardButton("🔗 Get Channel Link", callback_data=f"get_link_{sub_id}")]]
+            user_buttons = [[InlineKeyboardButton("🚀 Activate Premium 🚀", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")]]
             try:
                 await context.bot.send_message(
                     chat_id=updated_sub["user_id"],
@@ -304,9 +311,10 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
         f"📝 **Notes** : {notes}\n\n"
         "━━━━━━━━━━━━━━━\n\n"
         "⚡ **Welcome to Premium VIP Access** 🚀"
+        f"{chan_links_text}"
     )
 
-    user_buttons = [[InlineKeyboardButton("🔗 Get Channel Link", callback_data=f"get_link_{sub_id}")]]
+    user_buttons = [[InlineKeyboardButton("🚀 Activate Premium 🚀", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")]]
     try:
         await context.bot.send_message(
             chat_id=updated_sub["user_id"],

@@ -8,7 +8,8 @@ from handlers.admin_modules import (
     EDIT_PLAN_TITLE, EDIT_PLAN_DESC, EDIT_PLAN_LINK,
     SUB_REVOKE_REASON, GRANT_USER_ID, GRANT_PLAN, GRANT_DURATION, GRANT_CUSTOM,
     WELCOME_EDIT_TEXT, WELCOME_ADD_BTN, PLAN_ADD_EXT_BTN, ADMIN_BROADCAST, ADMIN_ADD_DB,
-    ADD_ADMIN_ID, TEST_MODE_USERS, FALLBACK_CHANNEL_LINK, SUB_LOG_CHAN_ID
+    ADD_ADMIN_ID, TEST_MODE_USERS, FALLBACK_CHANNEL_LINK, SUB_LOG_CHAN_ID,
+    FILE_STORE_BOT_USERNAME
 )
 from handlers.admin_modules.menu import (
     admin_start, settings_command, show_main_menu,
@@ -45,7 +46,8 @@ from handlers.admin_modules.config import (
     start_sub_log_channel, receive_sub_log_channel,
     expiry_notify_settings, handle_expiry_notify_callbacks,
     export_bot_settings, settings_import_conv,
-    start_test_mode_users, receive_test_mode_users, toggle_test_mode
+    start_test_mode_users, receive_test_mode_users, toggle_test_mode,
+    start_config_file_bot, receive_config_file_bot
 )
 from handlers.admin_modules.cluster import (
     start_broadcast, receive_broadcast, start_add_db, receive_add_db,
@@ -202,9 +204,17 @@ def get_admin_handlers() -> list:
         states={ADD_ADMIN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_admin_id)]},
         fallbacks=[CommandHandler("cancel", cancel_admin_access_flow), CallbackQueryHandler(cancel_admin_access_flow, pattern="^admin_access_cancel$")]
     )
+    file_bot_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(start_config_file_bot, pattern="^admin_config_file_bot$")],
+        states={
+            FILE_STORE_BOT_USERNAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_config_file_bot)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_admin_flow), CallbackQueryHandler(cancel_callback_handler, pattern="^menu_config")]
+    )
 
     return [
         CommandHandler("settings", settings_command),
+        file_bot_conv,
         add_plan_conv,
         edit_title_conv,
         edit_desc_conv,
