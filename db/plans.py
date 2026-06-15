@@ -30,7 +30,8 @@ class PlanQueries(ConnectionManager):
                     continue
                 try:
                     with self._get_cursor(specific_url=url) as (cursor, conn):
-                        cursor.execute("UPDATE channel_mappings SET plan_id = 1")
+                        cursor.execute("INSERT INTO channel_mappings (channel_id, plan_id) SELECT channel_id, 1 FROM channel_mappings ON CONFLICT (channel_id, plan_id) DO NOTHING")
+                        cursor.execute("DELETE FROM channel_mappings WHERE plan_id != 1")
                         cursor.execute("UPDATE subscriptions SET plan_id = 1, plan_name = 'Series bot & Movie channels'")
                         conn.commit()
                 except Exception as e:
