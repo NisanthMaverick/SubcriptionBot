@@ -140,9 +140,7 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 f"💵 **Total Amount paid** : {updated_sub['amount']}\n\n"
                 "💰 **Payment Status** : ✅ Renewed\n\n"
                 f"💳 **Payment Method** : {pay_method}\n\n"
-                "━━━━━━━━━━━━━━━\n\n"
-                "⚡ **Your premium access has been successfully extended!** 🚀"
-                f"{chan_links_text}"
+                "━━━━━━━━━━━━━━━"
             )
 
             user_buttons = [
@@ -153,6 +151,14 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 await context.bot.send_message(
                     chat_id=updated_sub["user_id"],
                     text=user_card_text,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True
+                )
+                
+                activation_text = "⚡ **To activate, use the below buttons:** 🚀"
+                await context.bot.send_message(
+                    chat_id=updated_sub["user_id"],
+                    text=activation_text,
                     reply_markup=InlineKeyboardMarkup(user_buttons),
                     parse_mode="Markdown",
                     disable_web_page_preview=True
@@ -241,9 +247,7 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 f"💵 **Total Amount paid** : {updated_sub['amount']}\n\n"
                 "💰 **Payment Status** : ✅ Paid\n\n"
                 f"💳 **Payment Method** : {pay_method}\n\n"
-                "━━━━━━━━━━━━━━━\n\n"
-                "⚡ **Your new VIP Access is ready!** 🚀"
-                f"{chan_links_text}"
+                "━━━━━━━━━━━━━━━"
             )
 
             user_buttons = [
@@ -254,6 +258,14 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
                 await context.bot.send_message(
                     chat_id=updated_sub["user_id"],
                     text=user_card_text,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True
+                )
+                
+                activation_text = "⚡ **To activate, use the below buttons:** 🚀"
+                await context.bot.send_message(
+                    chat_id=updated_sub["user_id"],
+                    text=activation_text,
                     reply_markup=InlineKeyboardMarkup(user_buttons),
                     parse_mode="Markdown",
                     disable_web_page_preview=True
@@ -330,9 +342,7 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
         "💰 **Payment Status** : ✅ Paid\n\n"
         f"💳 **Payment Method** : {pay_method}\n\n"
         f"📝 **Notes** : {notes}\n\n"
-        "━━━━━━━━━━━━━━━\n\n"
-        "⚡ **Welcome to Premium VIP Access** 🚀"
-        f"{chan_links_text}"
+        "━━━━━━━━━━━━━━━"
     )
 
     user_buttons = [
@@ -343,6 +353,14 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
         await context.bot.send_message(
             chat_id=updated_sub["user_id"],
             text=user_card_text,
+            parse_mode="Markdown",
+            disable_web_page_preview=True
+        )
+        
+        activation_text = "⚡ **To activate, use the below buttons:** 🚀"
+        await context.bot.send_message(
+            chat_id=updated_sub["user_id"],
+            text=activation_text,
             reply_markup=InlineKeyboardMarkup(user_buttons),
             parse_mode="Markdown",
             disable_web_page_preview=True
