@@ -211,20 +211,51 @@ async def view_channels_for_plan(update: Update, context: ContextTypes.DEFAULT_T
         
     channels = await asyncio.to_thread(db.get_channels_for_plan, plan_id)
     
-    text = f"📺 **Channels Included in:**\n✨ **{plan['name']}** ✨\n━━━━━━━━━━━━━━━━━━━━\n\n"
-    
-    if channels:
-        for i, c in enumerate(channels, 1):
-            text += f"🔹 {i}. {c['title']}\n"
-    else:
-        text += "📝 _No channels have been configured for this plan yet._\n"
+    if plan_id == 1:
+        file_bot = db.get_setting("file_store_bot_username", "TamilanlinkssSubscription_bot")
+        clean_bot = file_bot.lstrip("@")
         
-    text += "\n━━━━━━━━━━━━━━━━━━━━"
-    
-    keyboard = [
-        [InlineKeyboardButton("🔙 Back to Plan Selection", callback_data="view_channels_menu")],
-        [InlineKeyboardButton("📦 Browse All Plans", callback_data="select_plans_menu")]
-    ]
+        text = (
+            "⚡ **Welcome to Premium VIP Access** 🚀\n\n"
+            "🤖 **For Series:** Check this bot for Series available! Start the bot to check the series categories and browse our collection:\n"
+            f"👉 [Start Series Bot](https://t.me/{clean_bot}?start=availableseries)\n\n"
+            "🍿 **Movies Channels:**\n"
+        )
+        
+        movies_channels = [c for c in channels if any(x in c['title'].lower() for x in ['movie', 'db', 'theatre', 'hd'])]
+        if not movies_channels:
+            movies_channels = channels
+
+        if movies_channels:
+            for c in movies_channels:
+                title = c['title']
+                title = re.sub(r'^[🔹🔸♦️🔷🔶•\-\s]+', '', title)
+                text += f"🎬 {title}\n"
+        else:
+            text += "📝 _No movie channels configured._\n"
+            
+        text += "\n━━━━━━━━━━━━━━━━━━━━"
+        
+        keyboard = [
+            [InlineKeyboardButton("🤖 Start Series Bot", url=f"https://t.me/{clean_bot}?start=availableseries")],
+            [InlineKeyboardButton("🔙 Back to Plan Selection", callback_data="view_channels_menu")],
+            [InlineKeyboardButton("📦 Browse All Plans", callback_data="select_plans_menu")]
+        ]
+    else:
+        text = f"📺 **Channels Included in:**\n✨ **{plan['name']}** ✨\n━━━━━━━━━━━━━━━━━━━━\n\n"
+        
+        if channels:
+            for i, c in enumerate(channels, 1):
+                text += f"🔹 {i}. {c['title']}\n"
+        else:
+            text += "📝 _No channels have been configured for this plan yet._\n"
+            
+        text += "\n━━━━━━━━━━━━━━━━━━━━"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔙 Back to Plan Selection", callback_data="view_channels_menu")],
+            [InlineKeyboardButton("📦 Browse All Plans", callback_data="select_plans_menu")]
+        ]
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await edit_message_or_reply(update, translate_text(text, lang), reply_markup=reply_markup)

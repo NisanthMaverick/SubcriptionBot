@@ -22,7 +22,7 @@ class PlanQueries(ConnectionManager):
 
             # Seed/overwrite Plan 1
             p1_dur = [{"duration": "1 Month", "price": "₹20"}, {"duration": "2 Months", "price": "₹35"}]
-            self.save_plan(1, "Series bot & Movie channels", "Unlock premium access to Series Bot & Movie Channels.", "₹20 - ₹35", p1_dur, overwrite=True)
+            self.save_plan(1, "1. Series bot & Movie channels", "🤖 Inside the bot: New exclusive series will be updated regularly!\n🍿 Inside the channels: New premium movies will be updated daily!", "₹20 - ₹35", p1_dur, overwrite=True)
 
             # Migrate channel mappings to Plan 1
             for url in self._db_urls:
@@ -32,7 +32,7 @@ class PlanQueries(ConnectionManager):
                     with self._get_cursor(specific_url=url) as (cursor, conn):
                         cursor.execute("INSERT INTO channel_mappings (channel_id, plan_id) SELECT channel_id, 1 FROM channel_mappings ON CONFLICT (channel_id, plan_id) DO NOTHING")
                         cursor.execute("DELETE FROM channel_mappings WHERE plan_id != 1")
-                        cursor.execute("UPDATE subscriptions SET plan_id = 1, plan_name = 'Series bot & Movie channels'")
+                        cursor.execute("UPDATE subscriptions SET plan_id = 1, plan_name = '1. Series bot & Movie channels'")
                         conn.commit()
                 except Exception as e:
                     logger.warning(f"Failed migration queries on DB {url[:30]}: {e}")

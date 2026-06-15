@@ -35,12 +35,18 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
     # Filter Movies channels
     movies_channels = [c for c in channels if any(x in c['title'].lower() for x in ['movie', 'db', 'theatre', 'hd'])]
     
+    import re
+    clean_bot = file_bot.lstrip("@")
     chan_links_text = (
-        "\n\n🤖 **For Series:** Check this bot for Series available!\n\n"
+        "\n\n🤖 **For Series:** Check this bot for Series available! Start the bot to check the series categories and browse our collection:\n"
+        f"👉 [Start Series Bot](https://t.me/{clean_bot}?start=availableseries)\n\n"
         "🍿 **Movies Channels:**\n"
     )
     if movies_channels:
-        chan_links_text += "\n".join([f"🔹 {c['title']}" for c in movies_channels])
+        for c in movies_channels:
+            title = c['title']
+            title = re.sub(r'^[🔹🔸♦️🔷🔶•\-\s]+', '', title)
+            chan_links_text += f"🎬 {title}\n"
     else:
         chan_links_text += "*(No movie channels configured)*"
 
