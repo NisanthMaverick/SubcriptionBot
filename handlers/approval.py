@@ -144,7 +144,6 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
             )
 
             user_buttons = [
-                [InlineKeyboardButton("🤖 Activate Series Bot", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")],
                 [InlineKeyboardButton("🍿 Get Link for Movies Channel", callback_data=f"get_link_{updated_sub['sub_id']}")]
             ]
             try:
@@ -251,7 +250,6 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
             )
 
             user_buttons = [
-                [InlineKeyboardButton("🤖 Activate Series Bot", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")],
                 [InlineKeyboardButton("🍿 Get Link for Movies Channel", callback_data=f"get_link_{sub_id}")]
             ]
             try:
@@ -346,7 +344,6 @@ async def approve_subscription(sub_id: int, context: ContextTypes.DEFAULT_TYPE, 
     )
 
     user_buttons = [
-        [InlineKeyboardButton("🤖 Activate Series Bot", url=f"https://t.me/{file_bot}?start=premium_{updated_sub['user_id']}")],
         [InlineKeyboardButton("🍿 Get Link for Movies Channel", callback_data=f"get_link_{sub_id}")]
     ]
     try:
@@ -445,6 +442,14 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
     timer_notice = f"⏳ **CRITICAL**: For security reasons, these join links are forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
     timer_notice_single = f"⏳ **CRITICAL**: For security reasons, this join link is forward-restricted and **will be automatically deleted in {expiry_mins} minutes**. Please join immediately!\n\n{{TIMER_PLACEHOLDER}}\n\n"
 
+    # Add the Series Bot start button at the top, before channel buttons
+    file_bot_username = db.get_setting("file_store_bot_username", "TamilanlinkssSubscription_bot")
+    clean_file_bot = file_bot_username.lstrip("@")
+    series_bot_btn = InlineKeyboardButton(
+        "🤖 Start Series Bot",
+        url=f"https://t.me/{clean_file_bot}?start=premium_{sub['user_id']}"
+    )
+
     if delivery_type == "individual" and channels:
         link_msg_text = (
             "🚨 **SECURE VIP CHANNEL INVITES** 🚨\n\n"
@@ -452,7 +457,7 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
             f"{timer_notice}"
             "💬 If you face any issues, please contact Admin via the button below directly."
         )
-        link_buttons = []
+        link_buttons = [[series_bot_btn]]
         for c in channels:
             link_buttons.append([InlineKeyboardButton(f"📺 Join {c['title']} (Protected)", url=c['invite_link'])])
     else:
@@ -464,6 +469,7 @@ async def handle_get_link_callback(update: Update, context: ContextTypes.DEFAULT
             "💬 If you face any issues or are unable to join the channel, please contact Admin via the button below directly."
         )
         link_buttons = [
+            [series_bot_btn],
             [InlineKeyboardButton("🔗 Join Premium Channel (Protected)", url=plan_link)]
         ]
 
